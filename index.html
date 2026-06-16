@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>顧問先管理ツール</title>
+<!-- Excel入出力: SheetJS (CDN) -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<!-- Google Identity Services (OAuth) -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root{
+    --primary:#2563eb; --primary-dark:#1d4ed8; --bg:#f1f5f9; --panel:#ffffff;
+    --border:#e2e8f0; --text:#1e293b; --muted:#64748b; --danger:#dc2626;
+    --success:#16a34a; --warn:#d97706; --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+    background:var(--bg);color:var(--text);font-size:14px;}
+  header.appbar{background:var(--primary);color:#fff;padding:12px 20px;display:flex;
+    align-items:center;gap:16px;position:sticky;top:0;z-index:50;}
+  header.appbar h1{font-size:18px;margin:0;font-weight:600;}
+  header.appbar .sync-status{margin-left:auto;font-size:12px;display:flex;align-items:center;gap:8px;}
+  .dot{width:9px;height:9px;border-radius:50%;background:#94a3b8;display:inline-block;}
+  .dot.on{background:#4ade80;} .dot.err{background:#f87171;} .dot.busy{background:#fbbf24;}
+  .layout{display:flex;min-height:calc(100vh - 50px);}
+  nav.side{width:210px;background:#0f172a;color:#cbd5e1;padding:14px 0;flex-shrink:0;}
+  nav.side a{display:flex;align-items:center;gap:10px;padding:11px 20px;color:#cbd5e1;
+    text-decoration:none;cursor:pointer;font-size:14px;border-left:3px solid transparent;}
+  nav.side a:hover{background:#1e293b;color:#fff;}
+  nav.side a.active{background:#1e293b;color:#fff;border-left-color:var(--primary);}
+  nav.side a .ic{width:20px;text-align:center;}
+  main{flex:1;padding:24px;overflow-x:auto;}
+  .page{display:none;} .page.active{display:block;}
+  .page-head{display:flex;align-items:center;margin-bottom:18px;gap:12px;flex-wrap:wrap;}
+  .page-head h2{margin:0;font-size:20px;}
+  .toolbar{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;}
+  button,.btn{font-family:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid var(--border);
+    background:#fff;color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.15s;}
+  button:hover,.btn:hover{background:#f8fafc;}
+  button.primary{background:var(--primary);color:#fff;border-color:var(--primary);}
+  button.primary:hover{background:var(--primary-dark);}
+  button.danger{background:#fff;color:var(--danger);border-color:#fecaca;}
+  button.danger:hover{background:#fef2f2;}
+  button.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 8px;}
+  button.ghost:hover{background:#f1f5f9;color:var(--text);}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:0;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+  th{background:#f8fafc;font-weight:600;color:var(--muted);position:sticky;top:0;}
+  tbody tr:hover{background:#f8fafc;}
+  td.actions{text-align:right;}
+  .empty{padding:48px;text-align:center;color:var(--muted);}
+  .badge{padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block;}
+  .badge.gray{background:#f1f5f9;color:#475569;}
+  .badge.blue{background:#dbeafe;color:#1d4ed8;}
+  .badge.amber{background:#fef3c7;color:#b45309;}
+  .badge.green{background:#dcfce7;color:#15803d;}
+  .badge.red{background:#fee2e2;color:#b91c1c;}
+  .filters{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+  input,select,textarea{font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--border);
+    border-radius:8px;background:#fff;color:var(--text);width:100%;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12);}
+  .search-box{max-width:280px;}
+  /* modal */
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:100;
+    align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;}
+  .modal-bg.open{display:flex;}
+  .modal{background:#fff;border-radius:12px;width:100%;max-width:640px;box-shadow:0 20px 50px rgba(0,0,0,.3);}
+  .modal.wide{max-width:880px;}
+  .modal-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;}
+  .modal-head h3{margin:0;font-size:17px;}
+  .modal-head .x{margin-left:auto;}
+  .modal-body{padding:22px;max-height:65vh;overflow-y:auto;}
+  .modal-foot{padding:16px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field.full{grid-column:1 / -1;}
+  .field label{font-size:12px;color:var(--muted);font-weight:600;}
+  .req:after{content:" *";color:var(--danger);}
+  .hint{font-size:12px;color:var(--muted);line-height:1.6;}
+  .help-box{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:13px;line-height:1.8;}
+  .help-box ol{margin:8px 0;padding-left:20px;} .help-box code{background:#e2e8f0;padding:1px 5px;border-radius:4px;}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;
+    padding:12px 22px;border-radius:8px;font-size:14px;z-index:200;opacity:0;transition:.3s;pointer-events:none;}
+  .toast.show{opacity:1;bottom:34px;}
+  .toast.err{background:var(--danger);} .toast.ok{background:var(--success);}
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:22px;}
+  .stat{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;}
+  .stat .n{font-size:28px;font-weight:700;color:var(--primary);}
+  .stat .l{font-size:13px;color:var(--muted);margin-top:2px;}
+  .progress-bar{background:#e2e8f0;border-radius:999px;height:8px;width:80px;overflow:hidden;display:inline-block;vertical-align:middle;}
+  .progress-bar > span{display:block;height:100%;background:var(--primary);}
+  .items-table td{padding:6px 8px;}
+  .items-table input,.items-table select{padding:6px 8px;}
+  .link{color:var(--primary);text-decoration:none;cursor:pointer;}
+  .link:hover{text-decoration:underline;}
+  .row-flex{display:flex;gap:10px;align-items:center;}
+  .pill-set{display:flex;gap:6px;flex-wrap:wrap;}
+  .muted{color:var(--muted);}
+  details.help summary{cursor:pointer;font-weight:600;color:var(--primary);}
+</style>
+</head>
+<body>
+<header class="appbar">
+  <h1>📁 顧問先管理ツール</h1>
+  <div class="sync-status">
+    <span id="syncDot" class="dot"></span>
+    <span id="syncText">ローカル保存</span>
+    <button class="ghost" style="color:#fff" onclick="DriveSync.manualSync()" title="今すぐ同期">⟳ 同期</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="side">
+    <a data-page="dashboard" class="active" onclick="showPage('dashboard')"><span class="ic">🏠</span>ダッシュボード</a>
+    <a data-page="clients" onclick="showPage('clients')"><span class="ic">🏢</span>顧問先情報</a>
+    <a data-page="projects" onclick="showPage('projects')"><span class="ic">📊</span>案件進捗管理</a>
+    <a data-page="docs" onclick="showPage('docs')"><span class="ic">📋</span>資料回収リスト</a>
+    <a data-page="minutes" onclick="showPage('minutes')"><span class="ic">📝</span>議事録</a>
+    <a data-page="settings" onclick="showPage('settings')"><span class="ic">⚙️</span>設定</a>
+  </nav>
+  <main>
+    <!-- ダッシュボード -->
+    <section id="page-dashboard" class="page active">
+      <div class="page-head"><h2>ダッシュボード</h2></div>
+      <div class="stat-row" id="statRow"></div>
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 12px">期限が近い案件</h3>
+        <div id="dashUpcoming"></div>
+      </div>
+    </section>
+
+    <!-- 顧問先情報 -->
+    <section id="page-clients" class="page">
+      <div class="page-head">
+        <h2>顧問先情報</h2>
+        <div class="toolbar">
+          <button onclick="downloadClientTemplate()">⬇ インポート用テンプレート</button>
+          <button onclick="document.getElementById('clientImportFile').click()">📥 Excelインポート</button>
+          <input type="file" id="clientImportFile" accept=".xlsx,.xls" style="display:none" onchange="importClients(event)">
+          <button onclick="exportClients()">📤 Excel出力</button>
+          <button class="primary" onclick="openClientModal()">＋ 新規登録</button>
+        </div>
+      </div>
+      <div class="filters">
+        <input class="search-box" id="clientSearch" placeholder="🔍 顧問先名・担当者で検索" oninput="renderClients()">
+      </div>
+      <div class="card"><div id="clientTable"></div></div>
+    </section>
+
+    <!-- 案件進捗管理 -->
+    <section id="page-projects" class="page">
+      <div class="page-head">
+        <h2>案件進捗管理</h2>
+        <div class="toolbar">
+          <button onclick="exportProjects()">📤 Excel出力</button>
+          <button class="primary" onclick="openProjectModal()">＋ 案件追加</button>
+        </div>
+      </div>
+      <div class="filters">
+        <select id="projFilterClient" style="max-width:220px" onchange="renderProjects()"></select>
+        <select id="projFilterStatus" style="max-width:160px" onchange="renderProjects()">
+          <option value="">全ステータス</option>
+          <option>未着手</option><option>進行中</option><option>確認中</option><option>完了</option>
+        </select>
+        <input class="search-box" id="projSearch" placeholder="🔍 案件名で検索" oninput="renderProjects()">
+      </div>
+      <div class="card"><div id="projectTable"></div></div>
+    </section>
+
+    <!-- 資料回収リスト -->
+    <section id="page-docs" class="page">
+      <div class="page-head">
+        <h2>資料回収リスト</h2>
+        <div class="toolbar">
+          <button onclick="exportDocs()">📤 Excel出力</button>
+          <button class="primary" onclick="openDocModal()">＋ リスト作成</button>
+        </div>
+      </div>
+      <div class="filters">
+        <select id="docFilterClient" style="max-width:220px" onchange="renderDocs()"></select>
+      </div>
+      <div id="docCards"></div>
+    </section>
+
+    <!-- 議事録 -->
+    <section id="page-minutes" class="page">
+      <div class="page-head">
+        <h2>議事録</h2>
+        <div class="toolbar">
+          <button onclick="exportMinutes()">📤 Excel出力</button>
+          <button class="primary" onclick="openMinuteModal()">＋ 議事録作成</button>
+        </div>
+      </div>
+      <div class="filters">
+        <select id="minFilterClient" style="max-width:220px" onchange="renderMinutes()"></select>
+        <input class="search-box" id="minSearch" placeholder="🔍 件名で検索" oninput="renderMinutes()">
+      </div>
+      <div class="card"><div id="minuteTable"></div></div>
+    </section>
+
+    <!-- 設定 -->
+    <section id="page-settings" class="page">
+      <div class="page-head"><h2>設定</h2></div>
+      <div class="card" style="padding:22px;max-width:760px">
+        <h3 style="margin-top:0">Googleドライブ連携</h3>
+        <div class="field full" style="margin-bottom:16px">
+          <label>GoogleドライブのフォルダURL</label>
+          <input id="setFolderUrl" placeholder="https://drive.google.com/drive/folders/xxxxxxxx">
+          <span class="hint">このフォルダに <code>komon-manager-data.json</code> として登録内容を自動保存します。</span>
+        </div>
+        <div class="field full" style="margin-bottom:16px">
+          <label>OAuth クライアントID</label>
+          <input id="setClientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
+          <span class="hint">Google Cloud Consoleで取得したOAuth 2.0 クライアントID。</span>
+        </div>
+        <div class="row-flex" style="margin-bottom:20px">
+          <button class="primary" onclick="saveSettings()">💾 設定を保存</button>
+          <button onclick="DriveSync.connect()">🔗 Googleドライブに接続</button>
+          <button onclick="openDriveFolder()">📂 フォルダを開く</button>
+          <button onclick="DriveSync.loadFromDrive(true)">📥 ドライブから取り込む</button>
+        </div>
+
+        <h3>手動バックアップ</h3>
+        <div class="row-flex" style="margin-bottom:20px">
+          <button onclick="exportBackup()">⬇ データを書き出し (JSON)</button>
+          <button onclick="document.getElementById('backupImportFile').click()">⬆ データを取り込み (JSON)</button>
+          <input type="file" id="backupImportFile" accept=".json" style="display:none" onchange="importBackup(event)">
+        </div>
+
+        <details class="help">
+          <summary>Googleドライブ連携の設定手順を表示</summary>
+          <div class="help-box" style="margin-top:12px">
+            <ol>
+              <li><a class="link" href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a> でプロジェクトを作成</li>
+              <li>「APIとサービス」→「ライブラリ」で <b>Google Drive API</b> を有効化</li>
+              <li>「OAuth同意画面」を設定し、自分のGoogleアカウントをテストユーザーに追加</li>
+              <li>「認証情報」→「OAuthクライアントID」を作成（種類: ウェブアプリケーション）</li>
+              <li><b>承認済みのJavaScript生成元</b> にこのアプリを開くURL（例: <code>http://localhost:8080</code>）を追加
+                <br><span class="muted">※ <code>file://</code> で直接開くとGoogle認証が許可されません。下記の方法でローカルサーバ経由で開いてください。</span></li>
+              <li>発行されたクライアントIDを上の欄に入力して「設定を保存」→「Googleドライブに接続」</li>
+            </ol>
+            <b>ローカルサーバで開く例：</b> このフォルダで次を実行し <code>http://localhost:8080</code> を開く<br>
+            <code>python -m http.server 8080</code> （Pythonの場合）
+            <br><br>
+            <span class="muted">認証が使えない環境でも、データはブラウザ内(localStorage)に保存され、上の「手動バックアップ」でドライブフォルダへの保存／復元が可能です。</span>
+          </div>
+        </details>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ===== 顧問先モーダル ===== -->
+<div class="modal-bg" id="clientModal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="clientModalTitle">顧問先登録</h3><button class="ghost x" onclick="closeModal('clientModal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="cl_id">
+      <div class="form-grid">
+        <div class="field"><label class="req">顧問先名</label><input id="cl_name"></div>
+        <div class="field"><label>フリガナ</label><input id="cl_kana"></div>
+        <div class="field"><label>顧問先コード</label><input id="cl_code"></div>
+        <div class="field"><label>区分</label><select id="cl_type"><option>法人</option><option>個人</option></select></div>
+        <div class="field"><label>代表者名</label><input id="cl_rep"></div>
+        <div class="field"><label>法人番号</label><input id="cl_corpno"></div>
+        <div class="field"><label>郵便番号</label><input id="cl_zip"></div>
+        <div class="field"><label>決算月</label><select id="cl_fiscal"><option value=""></option><option>1月</option><option>2月</option><option>3月</option><option>4月</option><option>5月</option><option>6月</option><option>7月</option><option>8月</option><option>9月</option><option>10月</option><option>11月</option><option>12月</option></select></div>
+        <div class="field full"><label>住所</label><input id="cl_addr"></div>
+        <div class="field"><label>電話番号</label><input id="cl_tel"></div>
+        <div class="field"><label>メールアドレス</label><input id="cl_email"></div>
+        <div class="field"><label>契約区分</label><input id="cl_contract" placeholder="月次顧問 / スポット など"></div>
+        <div class="field"><label>担当者</label><input id="cl_staff"></div>
+        <div class="field"><label>顧問料(月額)</label><input id="cl_fee" type="number"></div>
+        <div class="field"><label>ステータス</label><select id="cl_status"><option>契約中</option><option>休止</option><option>解約</option></select></div>
+        <div class="field full"><label>備考</label><textarea id="cl_notes" rows="2"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button onclick="closeModal('clientModal')">キャンセル</button><button class="primary" onclick="saveClient()">保存</button></div>
+  </div>
+</div>
+
+<!-- ===== 案件モーダル ===== -->
+<div class="modal-bg" id="projectModal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="projectModalTitle">案件登録</h3><button class="ghost x" onclick="closeModal('projectModal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="pr_id">
+      <div class="form-grid">
+        <div class="field full"><label class="req">顧問先</label><select id="pr_client"></select></div>
+        <div class="field"><label class="req">案件名</label><input id="pr_name"></div>
+        <div class="field"><label>区分</label><select id="pr_category"><option>月次記帳</option><option>決算・申告</option><option>年末調整</option><option>確定申告</option><option>給与計算</option><option>その他</option></select></div>
+        <div class="field"><label>ステータス</label><select id="pr_status"><option>未着手</option><option>進行中</option><option>確認中</option><option>完了</option></select></div>
+        <div class="field"><label>担当者</label><input id="pr_assignee"></div>
+        <div class="field"><label>期限</label><input id="pr_due" type="date"></div>
+        <div class="field full"><label>進捗率: <span id="pr_progressLabel">0</span>%</label><input id="pr_progress" type="range" min="0" max="100" step="10" value="0" oninput="document.getElementById('pr_progressLabel').textContent=this.value"></div>
+        <div class="field full"><label>備考</label><textarea id="pr_notes" rows="2"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button onclick="closeModal('projectModal')">キャンセル</button><button class="primary" onclick="saveProject()">保存</button></div>
+  </div>
+</div>
+
+<!-- ===== 資料回収リストモーダル ===== -->
+<div class="modal-bg" id="docModal">
+  <div class="modal wide">
+    <div class="modal-head"><h3 id="docModalTitle">資料回収リスト</h3><button class="ghost x" onclick="closeModal('docModal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="dc_id">
+      <div class="form-grid" style="margin-bottom:16px">
+        <div class="field"><label class="req">顧問先</label><select id="dc_client"></select></div>
+        <div class="field"><label>リスト名</label><input id="dc_title" placeholder="例: 2026年3月期 決算資料"></div>
+        <div class="field"><label>対象期間</label><input id="dc_period" placeholder="例: 2025/4〜2026/3"></div>
+      </div>
+      <div class="row-flex" style="justify-content:space-between;margin-bottom:8px">
+        <b>回収項目</b><button onclick="addDocItemRow()">＋ 項目追加</button>
+      </div>
+      <table class="items-table"><thead><tr>
+        <th style="width:34%">資料名</th><th style="width:16%">状況</th><th style="width:18%">期限</th><th style="width:18%">回収日</th><th>備考</th><th></th>
+      </tr></thead><tbody id="dc_items"></tbody></table>
+    </div>
+    <div class="modal-foot"><button onclick="closeModal('docModal')">キャンセル</button><button class="primary" onclick="saveDoc()">保存</button></div>
+  </div>
+</div>
+
+<!-- ===== 議事録モーダル ===== -->
+<div class="modal-bg" id="minuteModal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="minuteModalTitle">議事録</h3><button class="ghost x" onclick="closeModal('minuteModal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="mn_id">
+      <div class="form-grid">
+        <div class="field"><label class="req">顧問先</label><select id="mn_client"></select></div>
+        <div class="field"><label class="req">日付</label><input id="mn_date" type="date"></div>
+        <div class="field full"><label class="req">件名</label><input id="mn_title"></div>
+        <div class="field full"><label>出席者</label><input id="mn_attendees"></div>
+        <div class="field full"><label>内容</label><textarea id="mn_content" rows="6"></textarea></div>
+        <div class="field full"><label>決定事項・next action</label><textarea id="mn_actions" rows="3"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button onclick="closeModal('minuteModal')">キャンセル</button><button class="primary" onclick="saveMinute()">保存</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   データ管理
+========================================================= */
+const LS_KEY = 'komonManagerData_v1';
+let data = { clients:[], projects:[], docLists:[], minutes:[], settings:{folderUrl:'',clientId:''} };
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function val(id){ return (document.getElementById(id).value||'').trim(); }
+function setVal(id,v){ document.getElementById(id).value = v==null?'':v; }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function clientName(id){ const c=data.clients.find(x=>x.id===id); return c?c.name:'(不明)'; }
+
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(raw){ const d=JSON.parse(raw); data = Object.assign(data,d); data.settings=Object.assign({folderUrl:'',clientId:''},d.settings||{}); }
+  }catch(e){ console.warn('load failed',e); }
+}
+let saveTimer=null;
+function persist(scheduleSync=true){
+  localStorage.setItem(LS_KEY, JSON.stringify(data));
+  if(scheduleSync){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(()=>DriveSync.saveToDrive(), 1500);
+  }
+}
+function refreshAll(){
+  renderDashboard(); renderClients(); renderProjects(); renderDocs(); renderMinutes();
+  populateClientSelects();
+}
+
+/* =========================================================
+   UIヘルパー
+========================================================= */
+function showPage(p){
+  document.querySelectorAll('.page').forEach(s=>s.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.querySelectorAll('nav.side a').forEach(a=>a.classList.toggle('active',a.dataset.page===p));
+}
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+let toastTimer=null;
+function toast(msg,type=''){
+  const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+type;
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.className='toast '+type,2600);
+}
+function populateClientSelects(){
+  const opts = '<option value="">顧問先を選択</option>'+
+    data.clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  ['pr_client','dc_client','mn_client'].forEach(id=>{ const el=document.getElementById(id); const cur=el.value; el.innerHTML=opts; el.value=cur; });
+  const allOpt='<option value="">全顧問先</option>'+data.clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  ['projFilterClient','docFilterClient','minFilterClient'].forEach(id=>{ const el=document.getElementById(id); const cur=el.value; el.innerHTML=allOpt; el.value=cur; });
+}
+
+/* =========================================================
+   ダッシュボード
+========================================================= */
+function renderDashboard(){
+  const active = data.clients.filter(c=>c.status!=='解約').length;
+  const openProj = data.projects.filter(p=>p.status!=='完了').length;
+  const pendingDocs = data.docLists.reduce((n,d)=>n+(d.items||[]).filter(i=>i.status!=='回収済').length,0);
+  document.getElementById('statRow').innerHTML = [
+    ['顧問先数',active],['進行中の案件',openProj],['未回収の資料',pendingDocs],['議事録',data.minutes.length]
+  ].map(([l,n])=>`<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+
+  const today=new Date(); const soon=new Date(); soon.setDate(today.getDate()+30);
+  const up = data.projects.filter(p=>p.status!=='完了'&&p.due).map(p=>({...p,d:new Date(p.due)}))
+    .filter(p=>!isNaN(p.d)).sort((a,b)=>a.d-b.d).slice(0,8);
+  document.getElementById('dashUpcoming').innerHTML = up.length? `<table><thead><tr><th>期限</th><th>顧問先</th><th>案件</th><th>ステータス</th></tr></thead><tbody>`+
+    up.map(p=>{ const over=p.d<today; return `<tr><td style="${over?'color:var(--danger);font-weight:600':''}">${p.due}${over?' (超過)':''}</td><td>${esc(clientName(p.clientId))}</td><td>${esc(p.name)}</td><td>${statusBadge(p.status)}</td></tr>`; }).join('')+`</tbody></table>`
+    : '<div class="empty">期限が設定された未完了案件はありません</div>';
+}
+function statusBadge(s){
+  const m={'未着手':'gray','進行中':'blue','確認中':'amber','完了':'green'};
+  return `<span class="badge ${m[s]||'gray'}">${esc(s)}</span>`;
+}
+
+/* =========================================================
+   顧問先
+========================================================= */
+function renderClients(){
+  const q=(document.getElementById('clientSearch').value||'').toLowerCase();
+  let list=data.clients;
+  if(q) list=list.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.kana||'').toLowerCase().includes(q)||(c.staff||'').toLowerCase().includes(q));
+  const el=document.getElementById('clientTable');
+  if(!list.length){ el.innerHTML='<div class="empty">顧問先が登録されていません。「＋ 新規登録」から追加してください。</div>'; return; }
+  el.innerHTML=`<table><thead><tr><th>顧問先名</th><th>区分</th><th>代表者</th><th>決算月</th><th>契約区分</th><th>担当者</th><th>状態</th><th></th></tr></thead><tbody>`+
+    list.map(c=>`<tr>
+      <td><a class="link" onclick="openClientModal('${c.id}')">${esc(c.name)}</a><div class="muted" style="font-size:12px">${esc(c.kana||'')}</div></td>
+      <td>${esc(c.type||'')}</td><td>${esc(c.rep||'')}</td><td>${esc(c.fiscal||'')}</td>
+      <td>${esc(c.contract||'')}</td><td>${esc(c.staff||'')}</td>
+      <td><span class="badge ${c.status==='解約'?'red':c.status==='休止'?'amber':'green'}">${esc(c.status||'契約中')}</span></td>
+      <td class="actions"><button class="ghost" onclick="openClientModal('${c.id}')">編集</button><button class="ghost" style="color:var(--danger)" onclick="deleteClient('${c.id}')">削除</button></td>
+    </tr>`).join('')+`</tbody></table>`;
+}
+function openClientModal(id){
+  document.getElementById('clientModalTitle').textContent = id?'顧問先編集':'顧問先登録';
+  const c = id? data.clients.find(x=>x.id===id):{};
+  setVal('cl_id',c.id||''); setVal('cl_name',c.name); setVal('cl_kana',c.kana); setVal('cl_code',c.code);
+  setVal('cl_type',c.type||'法人'); setVal('cl_rep',c.rep); setVal('cl_corpno',c.corpno); setVal('cl_zip',c.zip);
+  setVal('cl_fiscal',c.fiscal||''); setVal('cl_addr',c.addr); setVal('cl_tel',c.tel); setVal('cl_email',c.email);
+  setVal('cl_contract',c.contract); setVal('cl_staff',c.staff); setVal('cl_fee',c.fee); setVal('cl_status',c.status||'契約中'); setVal('cl_notes',c.notes);
+  openModal('clientModal');
+}
+function saveClient(){
+  if(!val('cl_name')){ toast('顧問先名を入力してください','err'); return; }
+  const id=val('cl_id');
+  const obj={ name:val('cl_name'),kana:val('cl_kana'),code:val('cl_code'),type:val('cl_type'),rep:val('cl_rep'),
+    corpno:val('cl_corpno'),zip:val('cl_zip'),fiscal:val('cl_fiscal'),addr:val('cl_addr'),tel:val('cl_tel'),
+    email:val('cl_email'),contract:val('cl_contract'),staff:val('cl_staff'),fee:val('cl_fee'),status:val('cl_status'),notes:val('cl_notes') };
+  if(id){ Object.assign(data.clients.find(x=>x.id===id),obj); } else { obj.id=uid(); data.clients.push(obj); }
+  persist(); refreshAll(); closeModal('clientModal'); toast('保存しました','ok');
+}
+function deleteClient(id){
+  const c=data.clients.find(x=>x.id===id);
+  if(!confirm(`「${c.name}」を削除しますか？\n関連する案件・資料リスト・議事録も削除されます。`)) return;
+  data.clients=data.clients.filter(x=>x.id!==id);
+  data.projects=data.projects.filter(x=>x.clientId!==id);
+  data.docLists=data.docLists.filter(x=>x.clientId!==id);
+  data.minutes=data.minutes.filter(x=>x.clientId!==id);
+  persist(); refreshAll(); toast('削除しました','ok');
+}
+
+/* 顧問先 Excel */
+const CLIENT_COLS=[['顧問先コード','code'],['顧問先名','name'],['フリガナ','kana'],['区分','type'],['代表者名','rep'],
+  ['法人番号','corpno'],['郵便番号','zip'],['住所','addr'],['電話番号','tel'],['メールアドレス','email'],
+  ['決算月','fiscal'],['契約区分','contract'],['担当者','staff'],['顧問料(月額)','fee'],['ステータス','status'],['備考','notes']];
+function exportClients(){
+  if(!data.clients.length){ toast('出力する顧問先がありません','err'); return; }
+  const rows=data.clients.map(c=>{ const o={}; CLIENT_COLS.forEach(([h,k])=>o[h]=c[k]||''); return o; });
+  const ws=XLSX.utils.json_to_sheet(rows,{header:CLIENT_COLS.map(c=>c[0])});
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'顧問先一覧');
+  XLSX.writeFile(wb,`顧問先一覧_${todayStr()}.xlsx`); toast('Excelを出力しました','ok');
+}
+function downloadClientTemplate(){
+  const ws=XLSX.utils.aoa_to_sheet([CLIENT_COLS.map(c=>c[0]),
+    ['001','株式会社サンプル','カブシキガイシャサンプル','法人','山田太郎','1234567890123','100-0001','東京都千代田区...','03-0000-0000','sample@example.com','3月','月次顧問','佐藤','50000','契約中','']]);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'顧問先インポート');
+  XLSX.writeFile(wb,'顧問先インポート用テンプレート.xlsx'); toast('テンプレートを出力しました','ok');
+}
+function importClients(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+      let added=0;
+      rows.forEach(r=>{ const o={id:uid()}; CLIENT_COLS.forEach(([h,k])=>o[k]=String(r[h]==null?'':r[h]).trim());
+        if(o.name){ if(!o.status)o.status='契約中'; if(!o.type)o.type='法人'; data.clients.push(o); added++; } });
+      persist(); refreshAll(); toast(`${added}件を取り込みました`,'ok');
+    }catch(err){ toast('読み込みに失敗しました: '+err.message,'err'); }
+    ev.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* =========================================================
+   案件進捗管理
+========================================================= */
+function renderProjects(){
+  const fc=document.getElementById('projFilterClient').value;
+  const fs=document.getElementById('projFilterStatus').value;
+  const q=(document.getElementById('projSearch').value||'').toLowerCase();
+  let list=data.projects.slice();
+  if(fc)list=list.filter(p=>p.clientId===fc);
+  if(fs)list=list.filter(p=>p.status===fs);
+  if(q)list=list.filter(p=>(p.name||'').toLowerCase().includes(q));
+  const el=document.getElementById('projectTable');
+  if(!list.length){ el.innerHTML='<div class="empty">案件がありません。「＋ 案件追加」から登録してください。</div>'; return; }
+  el.innerHTML=`<table><thead><tr><th>顧問先</th><th>案件名</th><th>区分</th><th>ステータス</th><th>進捗</th><th>担当者</th><th>期限</th><th></th></tr></thead><tbody>`+
+    list.map(p=>`<tr>
+      <td>${esc(clientName(p.clientId))}</td><td><a class="link" onclick="openProjectModal('${p.id}')">${esc(p.name)}</a></td>
+      <td>${esc(p.category||'')}</td><td>${statusBadge(p.status)}</td>
+      <td><div class="progress-bar"><span style="width:${p.progress||0}%"></span></div> ${p.progress||0}%</td>
+      <td>${esc(p.assignee||'')}</td><td>${esc(p.due||'')}</td>
+      <td class="actions"><button class="ghost" onclick="openProjectModal('${p.id}')">編集</button><button class="ghost" style="color:var(--danger)" onclick="deleteProject('${p.id}')">削除</button></td>
+    </tr>`).join('')+`</tbody></table>`;
+}
+function openProjectModal(id){
+  if(!data.clients.length){ toast('先に顧問先を登録してください','err'); return; }
+  document.getElementById('projectModalTitle').textContent=id?'案件編集':'案件登録';
+  const p=id?data.projects.find(x=>x.id===id):{};
+  setVal('pr_id',p.id||''); setVal('pr_client',p.clientId||''); setVal('pr_name',p.name);
+  setVal('pr_category',p.category||'月次記帳'); setVal('pr_status',p.status||'未着手'); setVal('pr_assignee',p.assignee);
+  setVal('pr_due',p.due); setVal('pr_progress',p.progress||0); document.getElementById('pr_progressLabel').textContent=p.progress||0;
+  setVal('pr_notes',p.notes); openModal('projectModal');
+}
+function saveProject(){
+  if(!val('pr_client')){ toast('顧問先を選択してください','err'); return; }
+  if(!val('pr_name')){ toast('案件名を入力してください','err'); return; }
+  const id=val('pr_id');
+  const obj={ clientId:val('pr_client'),name:val('pr_name'),category:val('pr_category'),status:val('pr_status'),
+    assignee:val('pr_assignee'),due:val('pr_due'),progress:Number(val('pr_progress'))||0,notes:val('pr_notes') };
+  if(id){ Object.assign(data.projects.find(x=>x.id===id),obj); } else { obj.id=uid(); data.projects.push(obj); }
+  persist(); refreshAll(); closeModal('projectModal'); toast('保存しました','ok');
+}
+function deleteProject(id){ if(!confirm('この案件を削除しますか？'))return; data.projects=data.projects.filter(x=>x.id!==id); persist(); refreshAll(); toast('削除しました','ok'); }
+function exportProjects(){
+  if(!data.projects.length){ toast('出力する案件がありません','err'); return; }
+  const rows=data.projects.map(p=>({'顧問先':clientName(p.clientId),'案件名':p.name,'区分':p.category,'ステータス':p.status,'進捗率(%)':p.progress||0,'担当者':p.assignee,'期限':p.due,'備考':p.notes}));
+  const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'案件進捗'); XLSX.writeFile(wb,`案件進捗管理_${todayStr()}.xlsx`); toast('Excelを出力しました','ok');
+}
+
+/* =========================================================
+   資料回収リスト
+========================================================= */
+function renderDocs(){
+  const fc=document.getElementById('docFilterClient').value;
+  let list=data.docLists.slice(); if(fc)list=list.filter(d=>d.clientId===fc);
+  const el=document.getElementById('docCards');
+  if(!list.length){ el.innerHTML='<div class="card"><div class="empty">資料回収リストがありません。「＋ リスト作成」から追加してください。</div></div>'; return; }
+  el.innerHTML=list.map(d=>{
+    const items=d.items||[]; const done=items.filter(i=>i.status==='回収済').length;
+    return `<div class="card" style="margin-bottom:16px;padding:16px 18px">
+      <div class="row-flex" style="justify-content:space-between;margin-bottom:10px">
+        <div><b>${esc(clientName(d.clientId))}</b> ／ ${esc(d.title||'資料回収リスト')} <span class="muted">${esc(d.period||'')}</span>
+          <div class="muted" style="font-size:12px">回収 ${done}/${items.length}</div></div>
+        <div><button class="ghost" onclick="openDocModal('${d.id}')">編集</button><button class="ghost" style="color:var(--danger)" onclick="deleteDoc('${d.id}')">削除</button></div>
+      </div>
+      <table><thead><tr><th>資料名</th><th>状況</th><th>期限</th><th>回収日</th><th>備考</th></tr></thead><tbody>`+
+      (items.length?items.map(i=>`<tr><td>${esc(i.name)}</td><td>${docStatusBadge(i.status)}</td><td>${esc(i.due||'')}</td><td>${esc(i.received||'')}</td><td>${esc(i.notes||'')}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">項目なし</td></tr>')+
+      `</tbody></table></div>`;
+  }).join('');
+}
+function docStatusBadge(s){ const m={'未依頼':'gray','依頼済':'amber','回収済':'green'}; return `<span class="badge ${m[s]||'gray'}">${esc(s||'未依頼')}</span>`; }
+function addDocItemRow(item={}){
+  const tb=document.getElementById('dc_items');
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><input class="di_name" value="${esc(item.name||'')}"></td>
+    <td><select class="di_status"><option ${item.status==='未依頼'||!item.status?'selected':''}>未依頼</option><option ${item.status==='依頼済'?'selected':''}>依頼済</option><option ${item.status==='回収済'?'selected':''}>回収済</option></select></td>
+    <td><input class="di_due" type="date" value="${esc(item.due||'')}"></td>
+    <td><input class="di_received" type="date" value="${esc(item.received||'')}"></td>
+    <td><input class="di_notes" value="${esc(item.notes||'')}"></td>
+    <td><button class="ghost" style="color:var(--danger)" onclick="this.closest('tr').remove()">✕</button></td>`;
+  tb.appendChild(tr);
+}
+function openDocModal(id){
+  if(!data.clients.length){ toast('先に顧問先を登録してください','err'); return; }
+  document.getElementById('docModalTitle').textContent=id?'資料回収リスト編集':'資料回収リスト作成';
+  const d=id?data.docLists.find(x=>x.id===id):{};
+  setVal('dc_id',d.id||''); setVal('dc_client',d.clientId||''); setVal('dc_title',d.title); setVal('dc_period',d.period);
+  document.getElementById('dc_items').innerHTML='';
+  const items=(d.items&&d.items.length)?d.items:[{},{},{}];
+  items.forEach(it=>addDocItemRow(it));
+  openModal('docModal');
+}
+function saveDoc(){
+  if(!val('dc_client')){ toast('顧問先を選択してください','err'); return; }
+  const items=[...document.querySelectorAll('#dc_items tr')].map(tr=>({
+    name:tr.querySelector('.di_name').value.trim(), status:tr.querySelector('.di_status').value,
+    due:tr.querySelector('.di_due').value, received:tr.querySelector('.di_received').value, notes:tr.querySelector('.di_notes').value.trim()
+  })).filter(i=>i.name);
+  const id=val('dc_id');
+  const obj={ clientId:val('dc_client'),title:val('dc_title')||'資料回収リスト',period:val('dc_period'),items };
+  if(id){ Object.assign(data.docLists.find(x=>x.id===id),obj); } else { obj.id=uid(); data.docLists.push(obj); }
+  persist(); refreshAll(); closeModal('docModal'); toast('保存しました','ok');
+}
+function deleteDoc(id){ if(!confirm('このリストを削除しますか？'))return; data.docLists=data.docLists.filter(x=>x.id!==id); persist(); refreshAll(); toast('削除しました','ok'); }
+function exportDocs(){
+  const rows=[];
+  data.docLists.forEach(d=>(d.items||[]).forEach(i=>rows.push({'顧問先':clientName(d.clientId),'リスト名':d.title,'対象期間':d.period,'資料名':i.name,'状況':i.status,'期限':i.due,'回収日':i.received,'備考':i.notes})));
+  if(!rows.length){ toast('出力する資料がありません','err'); return; }
+  const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'資料回収リスト'); XLSX.writeFile(wb,`資料回収リスト_${todayStr()}.xlsx`); toast('Excelを出力しました','ok');
+}
+
+/* =========================================================
+   議事録
+========================================================= */
+function renderMinutes(){
+  const fc=document.getElementById('minFilterClient').value;
+  const q=(document.getElementById('minSearch').value||'').toLowerCase();
+  let list=data.minutes.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  if(fc)list=list.filter(m=>m.clientId===fc);
+  if(q)list=list.filter(m=>(m.title||'').toLowerCase().includes(q));
+  const el=document.getElementById('minuteTable');
+  if(!list.length){ el.innerHTML='<div class="empty">議事録がありません。「＋ 議事録作成」から追加してください。</div>'; return; }
+  el.innerHTML=`<table><thead><tr><th>日付</th><th>顧問先</th><th>件名</th><th>出席者</th><th></th></tr></thead><tbody>`+
+    list.map(m=>`<tr><td>${esc(m.date||'')}</td><td>${esc(clientName(m.clientId))}</td>
+      <td><a class="link" onclick="openMinuteModal('${m.id}')">${esc(m.title)}</a></td><td>${esc(m.attendees||'')}</td>
+      <td class="actions"><button class="ghost" onclick="openMinuteModal('${m.id}')">編集</button><button class="ghost" style="color:var(--danger)" onclick="deleteMinute('${m.id}')">削除</button></td></tr>`).join('')+`</tbody></table>`;
+}
+function openMinuteModal(id){
+  if(!data.clients.length){ toast('先に顧問先を登録してください','err'); return; }
+  document.getElementById('minuteModalTitle').textContent=id?'議事録編集':'議事録作成';
+  const m=id?data.minutes.find(x=>x.id===id):{};
+  setVal('mn_id',m.id||''); setVal('mn_client',m.clientId||''); setVal('mn_date',m.date||todayStr());
+  setVal('mn_title',m.title); setVal('mn_attendees',m.attendees); setVal('mn_content',m.content); setVal('mn_actions',m.actions);
+  openModal('minuteModal');
+}
+function saveMinute(){
+  if(!val('mn_client')){ toast('顧問先を選択してください','err'); return; }
+  if(!val('mn_date')){ toast('日付を入力してください','err'); return; }
+  if(!val('mn_title')){ toast('件名を入力してください','err'); return; }
+  const id=val('mn_id');
+  const obj={ clientId:val('mn_client'),date:val('mn_date'),title:val('mn_title'),attendees:val('mn_attendees'),content:val('mn_content'),actions:val('mn_actions') };
+  if(id){ Object.assign(data.minutes.find(x=>x.id===id),obj); } else { obj.id=uid(); data.minutes.push(obj); }
+  persist(); refreshAll(); closeModal('minuteModal'); toast('保存しました','ok');
+}
+function deleteMinute(id){ if(!confirm('この議事録を削除しますか？'))return; data.minutes=data.minutes.filter(x=>x.id!==id); persist(); refreshAll(); toast('削除しました','ok'); }
+function exportMinutes(){
+  if(!data.minutes.length){ toast('出力する議事録がありません','err'); return; }
+  const rows=data.minutes.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+    .map(m=>({'日付':m.date,'顧問先':clientName(m.clientId),'件名':m.title,'出席者':m.attendees,'内容':m.content,'決定事項・next action':m.actions}));
+  const ws=XLSX.utils.json_to_sheet(rows); ws['!cols']=[{wch:12},{wch:20},{wch:24},{wch:18},{wch:50},{wch:40}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'議事録'); XLSX.writeFile(wb,`議事録_${todayStr()}.xlsx`); toast('Excelを出力しました','ok');
+}
+
+/* =========================================================
+   設定 / バックアップ
+========================================================= */
+function todayStr(){ const d=new Date(); return d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2); }
+function saveSettings(){
+  data.settings.folderUrl=val('setFolderUrl');
+  data.settings.clientId=val('setClientId');
+  persist(false); toast('設定を保存しました','ok');
+}
+function openDriveFolder(){
+  const url=val('setFolderUrl')||data.settings.folderUrl;
+  if(!url){ toast('フォルダURLを入力してください','err'); return; }
+  window.open(url,'_blank');
+}
+function exportBackup(){
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`komon-manager-data.json`; a.click();
+  URL.revokeObjectURL(a.href); toast('データを書き出しました','ok');
+}
+function importBackup(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  const r=new FileReader();
+  r.onload=e=>{ try{ const d=JSON.parse(e.target.result); applyImportedData(d); toast('データを取り込みました','ok'); }
+    catch(err){ toast('読み込み失敗: '+err.message,'err'); } ev.target.value=''; };
+  r.readAsText(file);
+}
+function applyImportedData(d){
+  data.clients=d.clients||[]; data.projects=d.projects||[]; data.docLists=d.docLists||[]; data.minutes=d.minutes||[];
+  if(d.settings){ data.settings.folderUrl=d.settings.folderUrl||data.settings.folderUrl; data.settings.clientId=d.settings.clientId||data.settings.clientId; }
+  persist(false); restoreSettingsUI(); refreshAll();
+}
+function restoreSettingsUI(){ setVal('setFolderUrl',data.settings.folderUrl); setVal('setClientId',data.settings.clientId); }
+
+/* =========================================================
+   Google Drive 同期
+========================================================= */
+const DriveSync = (function(){
+  const FILE_NAME='komon-manager-data.json';
+  const SCOPE='https://www.googleapis.com/auth/drive.file';
+  let tokenClient=null, accessToken=null, fileId=null, ready=false;
+
+  function setStatus(state,text){
+    const dot=document.getElementById('syncDot'), txt=document.getElementById('syncText');
+    dot.className='dot '+({on:'on',err:'err',busy:'busy'}[state]||'');
+    txt.textContent=text;
+  }
+  function folderId(){
+    const url=data.settings.folderUrl||''; const m=url.match(/folders\/([a-zA-Z0-9_-]+)/);
+    return m?m[1]:null;
+  }
+  function initClient(){
+    if(!data.settings.clientId || !window.google || !google.accounts){ return false; }
+    tokenClient=google.accounts.oauth2.initTokenClient({
+      client_id:data.settings.clientId, scope:SCOPE,
+      callback:resp=>{ if(resp.access_token){ accessToken=resp.access_token; ready=true; onAuthed(); } }
+    });
+    return true;
+  }
+  function connect(){
+    if(!data.settings.clientId){ toast('OAuthクライアントIDを設定してください','err'); showPage('settings'); return; }
+    if(!folderId()){ toast('有効なドライブフォルダURLを設定してください','err'); showPage('settings'); return; }
+    if(!tokenClient && !initClient()){ toast('Google認証ライブラリの読み込み待ちです。少し待って再試行してください','err'); return; }
+    setStatus('busy','接続中...');
+    tokenClient.requestAccessToken({prompt:accessToken?'':'consent'});
+  }
+  async function onAuthed(){
+    setStatus('busy','同期中...');
+    try{ await findFile(); await loadFromDrive(false); setStatus('on','ドライブ同期中'); toast('Googleドライブに接続しました','ok'); }
+    catch(e){ console.error(e); setStatus('err','同期エラー'); toast('同期エラー: '+e.message,'err'); }
+  }
+  async function api(url,opts={}){
+    opts.headers=Object.assign({Authorization:'Bearer '+accessToken},opts.headers||{});
+    const r=await fetch(url,opts);
+    if(r.status===401){ ready=false; accessToken=null; throw new Error('認証が切れました。再接続してください'); }
+    if(!r.ok) throw new Error('Drive API '+r.status);
+    return r;
+  }
+  async function findFile(){
+    const fid=folderId(); if(!fid) throw new Error('フォルダ未設定');
+    const q=encodeURIComponent(`name='${FILE_NAME}' and '${fid}' in parents and trashed=false`);
+    const r=await api(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`);
+    const j=await r.json(); fileId=(j.files&&j.files[0])?j.files[0].id:null; return fileId;
+  }
+  async function saveToDrive(){
+    if(!ready||!accessToken) return;            // 未接続時はローカルのみ
+    try{
+      setStatus('busy','保存中...');
+      const content=JSON.stringify(data,null,2);
+      if(!fileId) await findFile();
+      const meta={name:FILE_NAME, mimeType:'application/json'};
+      if(!fileId){ meta.parents=[folderId()]; }
+      const boundary='-------komon'+Date.now();
+      const body=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`+
+        JSON.stringify(meta)+`\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n`+content+`\r\n--${boundary}--`;
+      const method=fileId?'PATCH':'POST';
+      const url=fileId
+        ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id`
+        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id`;
+      const r=await api(url,{method,headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body});
+      const j=await r.json(); if(j.id) fileId=j.id;
+      setStatus('on','ドライブ同期中');
+    }catch(e){ console.error(e); setStatus('err','保存エラー'); }
+  }
+  async function loadFromDrive(notify){
+    if(!ready||!accessToken){ if(notify){ connect(); } return; }
+    try{
+      setStatus('busy','読込中...');
+      if(!fileId) await findFile();
+      if(!fileId){ setStatus('on','ドライブ同期中'); if(notify)toast('ドライブにデータファイルがありません（新規作成されます）',''); return; }
+      const r=await api(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`);
+      const d=await r.json(); applyImportedData(d);
+      setStatus('on','ドライブ同期中'); if(notify)toast('ドライブから取り込みました','ok');
+    }catch(e){ console.error(e); setStatus('err','読込エラー'); if(notify)toast('読込エラー: '+e.message,'err'); }
+  }
+  function manualSync(){ if(ready){ saveToDrive(); } else { connect(); } }
+
+  return { connect, saveToDrive, loadFromDrive, manualSync, setStatus };
+})();
+
+/* =========================================================
+   起動
+========================================================= */
+window.addEventListener('DOMContentLoaded',()=>{
+  loadLocal();
+  restoreSettingsUI();
+  refreshAll();
+  // 設定済みなら自動でドライブ接続を試行
+  if(data.settings.clientId && data.settings.folderUrl){
+    DriveSync.setStatus('','ローカル保存（未接続）');
+    setTimeout(()=>{ try{ DriveSync.connect(); }catch(e){} }, 1200);
+  }
+  // モーダル外クリックで閉じる
+  document.querySelectorAll('.modal-bg').forEach(bg=>bg.addEventListener('click',e=>{ if(e.target===bg) bg.classList.remove('open'); }));
+});
+</script>
+</body>
+</html>
