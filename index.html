@@ -72,6 +72,11 @@
   .chip.gray{background:#f1f3f4;color:#5f6368;} .chip.blue{background:#e8f0fe;color:#1967d2;}
   .chip.amber{background:#feefc3;color:#b06000;} .chip.green{background:#e6f4ea;color:#137333;}
   .chip.red{background:#fce8e6;color:#c5221f;}
+  .chip.pink{background:#fce4ec;color:#c2185b;}
+  .amt-wrap{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:6px;background:#fff;overflow:hidden;vertical-align:middle;}
+  .amt-wrap:focus-within{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-soft);}
+  .amt-wrap .pre{padding-left:8px;color:var(--danger);font-size:13px;font-weight:600;}
+  .amt-wrap input.amt{border:none!important;box-shadow:none!important;padding:7px 8px 7px 4px;min-width:62px;}
   .filters{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
   input,select,textarea{font-family:inherit;font-size:14px;padding:9px 12px;border:1px solid var(--border);
     border-radius:6px;background:var(--surface);color:var(--text);width:100%;}
@@ -114,8 +119,10 @@
   .cell{cursor:pointer;border-radius:4px;padding:3px 4px;min-width:60px;display:inline-block;}
   .cell.done{color:var(--green);font-weight:600;} .cell.todo{color:var(--muted);} .cell.over{color:var(--danger);font-weight:600;} .cell.na{color:#9aa0a6;font-style:italic;}
   .cell:hover{background:#e8f0fe;}
-  #cellPop{position:absolute;display:none;z-index:320;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-lg);padding:10px;}
-  #cellPop .row{display:flex;gap:6px;margin-top:8px;}
+  #cellPop{position:absolute;display:none;z-index:320;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);padding:12px;min-width:180px;}
+  #cellPop .row{display:flex;gap:8px;margin-bottom:10px;}
+  #cellPop .row button{flex:1;justify-content:center;}
+  #cellPop input[type=date]{width:100%;}
   .flt{font-size:11px;} .flt-menu{position:absolute;display:none;z-index:330;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-lg);padding:4px;min-width:96px;}
   .flt-opt{padding:7px 12px;font-size:13px;border-radius:6px;cursor:pointer;} .flt-opt:hover{background:#f1f3f4;} .flt-opt.on{background:var(--blue-soft);color:var(--blue);font-weight:600;}
   input.amt{text-align:right;}
@@ -368,7 +375,7 @@
   <div class="modal-foot"><button class="text" onclick="closeModal('summaryModal')">閉じる</button></div>
 </div></div>
 
-<div id="cellPop"><input type="date" id="cellPopDate"><div class="row"><button class="sm" onclick="cellPopSet('対象外')">対象外</button><button class="sm" onclick="cellPopSet('')">クリア</button></div></div>
+<div id="cellPop"><div class="row"><button class="sm" onclick="cellPopSet('対象外')">対象外</button><button class="sm" onclick="cellPopSet('')">クリア</button></div><input type="date" id="cellPopDate"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -900,13 +907,13 @@ function renderNencho(){
     const dcell=(f)=>{ const v=r[f]; let cls,txt; if(v==='対象外'){cls='na';txt='対象外';} else if(v){cls='done';txt=fmtMD(v);} else {cls='todo';txt='未';} return `<td><span class="cell ${cls}" onclick="editNenchoCell(event,'${c.id}','${f}')">${txt}</span></td>`; };
     const ded=nenchoDeductionOf(nenchoYear,c.id);
     return `<tr><td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td>
-      <td>${c.gensenStatus?`<span class="chip ${c.gensenStatus==='納期特例'?'amber':'gray'}">${esc(c.gensenStatus)}</span>`:''}</td><td>${payChip(c)}</td>
+      <td>${c.gensenStatus?`<span class="chip ${c.gensenStatus==='納期特例'?'amber':'pink'}">${esc(c.gensenStatus)}</span>`:''}</td><td>${payChip(c)}</td>
       <td><input style="min-width:110px;padding:5px 7px" value="${esc(r.note||'')}" onchange="setNenchoField('${c.id}','note',this.value)"></td>
       ${dcell('collect')}${dcell('payroll')}${dcell('confirm')}${dcell('send')}
-      <td style="text-align:right">${amtInput(r.genzei,`setNenchoAmt('${c.id}','genzei',this.value)`)}</td>
-      <td style="text-align:right">${amtInput(r.shortfall,`setNenchoAmt('${c.id}','shortfall',this.value)`)}</td>
-      <td style="text-align:right;white-space:nowrap"><span style="color:var(--danger);margin-right:2px">△</span>${amtInput(r.refund,`setNenchoAmt('${c.id}','refund',this.value)`,'min-width:74px')}</td>
-      <td class="yen" style="text-align:right;font-weight:600">${fmtAmtSigned(ded)}</td></tr>`; }).join('');
+      <td style="text-align:right">${amtInput(r.genzei,`setNenchoAmt('${c.id}','genzei',this.value)`,'min-width:74px')}</td>
+      <td style="text-align:right">${amtInput(r.shortfall,`setNenchoAmt('${c.id}','shortfall',this.value)`,'min-width:74px')}</td>
+      <td style="text-align:right"><span class="amt-wrap"><span class="pre">△</span><input type="text" inputmode="numeric" class="amt" style="min-width:62px" value="${fmtAmt(r.refund)}" onchange="setNenchoAmt('${c.id}','refund',this.value)"></span></td>
+      <td class="yen" style="text-align:right;font-weight:600;white-space:nowrap;padding-right:18px">${fmtAmtSigned(ded)}</td></tr>`; }).join('');
   html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     <div class="hint" style="margin-top:12px">※ 当月源泉税額・年末調整不足額・年末調整還付額は正の金額で入力します（還付額は△表示で減算）。控除未済額＝当月源泉税額＋年末調整不足額−年末調整還付額で自動計算し、源泉税管理（毎月納付の翌年1月分／納期特例の1〜6月分）の未済繰越額に連携します。</div>`;
   document.getElementById('nenchoView').innerHTML=html;
