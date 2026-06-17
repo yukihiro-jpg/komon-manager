@@ -124,7 +124,7 @@
   .notice{background:var(--blue-soft);border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.7;color:#174ea6;margin-bottom:14px;}
   .add-row-list{max-height:300px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;}
   .multi-rows .mr{display:grid;gap:8px;margin-bottom:8px;align-items:center;}
-  .multi-rows.pref .mr{grid-template-columns:1.2fr 1fr 1fr auto;} .multi-rows.city .mr{grid-template-columns:1.5fr 1fr auto;}
+  .multi-rows.pref .mr{grid-template-columns:1.2fr 1fr 1fr 1fr 1fr auto;} .multi-rows.city .mr{grid-template-columns:1.4fr 1fr 1fr auto;}
   .multi-rows .mr .h{font-size:11px;color:var(--muted);}
   .year-nav{display:flex;align-items:center;gap:6px;}
   .year-nav b{font-size:17px;min-width:170px;text-align:center;}
@@ -233,6 +233,11 @@
         <select id="setAiModel"></select></div>
       <div class="row-flex" style="margin-bottom:24px"><button class="primary" onclick="saveSettings()">💾 設定を保存</button></div>
 
+      <h3 style="font-weight:500">中間申告管理の表示項目</h3>
+      <div class="hint" style="margin-bottom:10px">中間申告管理の一覧に表示する列を選択します。</div>
+      <div id="interimColsBox" style="display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:14px"></div>
+      <div class="row-flex" style="margin-bottom:24px"><button class="primary" onclick="saveSettings()">💾 設定を保存</button></div>
+
       <h3 style="font-weight:500">手動バックアップ</h3>
       <div class="row-flex" style="margin-bottom:24px">
         <button onclick="exportBackup()">⬇ 書き出し (JSON)</button>
@@ -295,24 +300,22 @@
   <div class="modal-body">
     <input type="hidden" id="tx_year"><input type="hidden" id="tx_clientId">
     <div class="notice" id="tx_fyInfo"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
-      <div>
-        <h4 style="margin:0 0 10px;font-weight:500">当期の確定税額（前期実績＝中間の基礎）</h4>
-        <div class="form-grid">
-          <div class="field"><label>前期事業年度の月数</label><input id="tx_months" type="number" value="12"></div>
-          <div class="field"></div>
-          <div class="field"><label>確定法人税（国税）</label><input id="tx_corp" type="number" placeholder="円"></div>
-          <div class="field"><label>確定地方法人税（国税）</label><input id="tx_localCorp" type="number" placeholder="円"></div>
-          <div class="field full"><label>確定消費税【国税のみ・地方消費税を除く】</label><input id="tx_cons" type="number" placeholder="円"></div>
-        </div>
-        <div class="row-flex" style="justify-content:space-between;margin-top:16px"><b style="font-size:13px">都道府県（県民税・事業税）</b><button class="sm" onclick="addPrefRow()">＋ 県を追加</button></div>
-        <div class="multi-rows pref" id="tx_pref"></div>
-        <div class="row-flex" style="justify-content:space-between;margin-top:10px"><b style="font-size:13px">市町村（市民税）</b><button class="sm" onclick="addCityRow()">＋ 市を追加</button></div>
-        <div class="multi-rows city" id="tx_city"></div>
-        <div style="margin-top:16px"><button class="primary" onclick="calcAndRender()">計算する</button><span class="hint">入力後に押すと右側が更新されます。</span></div>
-      </div>
-      <div><h4 style="margin:0 0 10px;font-weight:500">翌期の中間申告（予定申告方式・前期実績基準）</h4><div id="tx_result"></div></div>
+    <h4 style="margin:0 0 10px;font-weight:500">当期の確定税額（年税額。これを基礎に翌期の予定申告額を計算します）</h4>
+    <div class="form-grid">
+      <div class="field"><label>前期事業年度の月数</label><input id="tx_months" type="number" value="12"></div>
+      <div class="field"></div>
+      <div class="field"><label>確定法人税（国税）</label><input id="tx_corp" type="number" placeholder="円"></div>
+      <div class="field"><label>確定地方法人税（国税）</label><input id="tx_localCorp" type="number" placeholder="円"></div>
+      <div class="field full"><label>確定消費税【国税のみ・地方消費税を除く】</label><input id="tx_cons" type="number" placeholder="円"></div>
     </div>
+    <div class="row-flex" style="justify-content:space-between;margin-top:16px"><b style="font-size:13px">都道府県（県民税法人税割・均等割／事業税／特別法人事業税）</b><button class="sm" onclick="addPrefRow()">＋ 県を追加</button></div>
+    <div class="multi-rows pref"><div class="mr"><span class="h">都道府県名</span><span class="h">県民税(法人税割)</span><span class="h">県民税(均等割)</span><span class="h">事業税</span><span class="h">特別法人事業税</span><span></span></div></div>
+    <div class="multi-rows pref" id="tx_pref"></div>
+    <div class="row-flex" style="justify-content:space-between;margin-top:10px"><b style="font-size:13px">市町村（市民税法人税割・均等割）</b><button class="sm" onclick="addCityRow()">＋ 市を追加</button></div>
+    <div class="multi-rows city"><div class="mr"><span class="h">市町村名</span><span class="h">市民税(法人税割)</span><span class="h">市民税(均等割)</span><span></span></div></div>
+    <div class="multi-rows city" id="tx_city"></div>
+    <div style="margin-top:16px;margin-bottom:10px"><button class="primary" onclick="calcAndRender()">計算する</button><span class="hint">入力後に押すと下に翌期の中間申告額が表示されます。</span></div>
+    <h4 style="margin:14px 0 10px;font-weight:500">翌期の中間申告（予定申告方式・前期実績基準）</h4><div id="tx_result"></div>
   </div>
   <div class="modal-foot"><button class="text" onclick="closeModal('taxModal')">閉じる</button><button class="primary" onclick="saveTax()">保存</button></div>
 </div></div>
@@ -363,7 +366,7 @@
 <script>
 /* ===== データ ===== */
 const LS_KEY='komonManagerData_v3';
-const AI_DEFAULTS={folderUrl:'',clientId:'',aiProvider:'gemini',claudeApiKey:'',claudeModel:'claude-opus-4-8',geminiApiKey:'',geminiModel:'gemini-2.5-flash'};
+const AI_DEFAULTS={folderUrl:'',clientId:'',aiProvider:'gemini',claudeApiKey:'',claudeModel:'claude-opus-4-8',geminiApiKey:'',geminiModel:'gemini-2.5-flash',interimCols:null};
 let data={ clients:[], filings:{}, filingSteps:{}, interimDone:{}, modules:{}, gensen:{monthly:{},special:{}}, clientSummaries:{}, docLists:[], minutes:[], settings:Object.assign({},AI_DEFAULTS) };
 let filingYear=new Date().getFullYear(), filingMonth=null;     // 確定申告管理：決算年・選択中の決算月
 let interimYear=new Date().getFullYear(), interimMonth=null;   // 中間申告管理：暦年・選択中の月
@@ -382,9 +385,13 @@ function clientName(id){ const c=clientById(id); return c?c.name:'(不明)'; }
 function yen(n){ return (n||0).toLocaleString('ja-JP')+'円'; }
 const MONTHS=[...Array(12)].map((_,i)=>(i+1)+'月');
 function wareki(y){ if(y>=2019)return '令和'+(y-2018)+'年'; if(y>=1989)return '平成'+(y-1988)+'年'; return y+'年'; }
-const DEFAULT_STEPS=['資料受取','会計入力','申告書作成','申告書チェック_1回目','申告書チェック_2回目','申告書セット','押印・納付書','申告','返却用セット','返却'];
-
-function loadLocal(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const d=JSON.parse(raw); data=Object.assign(data,d); data.settings=Object.assign({},AI_DEFAULTS,d.settings||{}); ['filings','filingSteps','interimDone','modules','clientSummaries'].forEach(k=>{ if(!data[k])data[k]={}; }); if(!data.gensen)data.gensen={monthly:{},special:{}}; } }catch(e){console.warn(e);} }
+const DEFAULT_STEPS=['資料受取','会計入力','申告書作成','申告書チェック','申告書セット','押印・納付書','申告','返却用セット','返却'];
+function migrateFilingSteps(){
+  Object.keys(data.filingSteps||{}).forEach(mk=>{ const arr=data.filingSteps[mk]; if(!Array.isArray(arr))return;
+    data.filingSteps[mk]=arr.filter(s=>s.name!=='申告書チェック_2回目').map(s=>s.name==='申告書チェック_1回目'?Object.assign({},s,{name:'申告書チェック'}):s); });
+  Object.values(data.filings||{}).forEach(f=>{ if(f&&f.cells){ if(f.cells['申告書チェック_1回目']!=null&&f.cells['申告書チェック']==null)f.cells['申告書チェック']=f.cells['申告書チェック_1回目']; delete f.cells['申告書チェック_1回目']; delete f.cells['申告書チェック_2回目']; } });
+}
+function loadLocal(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const d=JSON.parse(raw); data=Object.assign(data,d); data.settings=Object.assign({},AI_DEFAULTS,d.settings||{}); ['filings','filingSteps','interimDone','modules','clientSummaries'].forEach(k=>{ if(!data[k])data[k]={}; }); if(!data.gensen)data.gensen={monthly:{},special:{}}; migrateFilingSteps(); } }catch(e){console.warn(e);} }
 let saveTimer=null;
 function persist(sync=true){ localStorage.setItem(LS_KEY,JSON.stringify(data)); if(sync){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>DriveSync.saveToDrive(),1500); } }
 function refreshAll(){ renderDashboard(); renderClients(); renderFiling(); renderInterim(); renderDocs(); renderMinutes(); populateClientSelects();
@@ -416,20 +423,50 @@ function getFiling(y,id){ return data.filings[y+'__'+id]||{cells:{},tax:{},note:
 function ensureFiling(y,id){ const k=y+'__'+id; if(!data.filings[k])data.filings[k]={cells:{},tax:{},note:''}; return data.filings[k]; }
 function fmtMD(iso){ if(!iso)return''; const p=iso.split('-'); return p.length===3?(+p[1])+'/'+(+p[2]):iso; }
 
+/* ===== 進捗管理グリッドの検索・並び替え（全グリッド共通） ===== */
+const gridStates={};
+function cellSortKey(td){ if(!td)return ''; const t=(td.textContent||'').trim(); const n=t.replace(/[, 円%／/]/g,''); if(n!==''&&!isNaN(n))return Number(n); return t; }
+function applyGridFilter(table,key){ const st=gridStates[key]; const tb=table.tBodies[0]; if(!tb)return;
+  [...tb.rows].forEach(r=>{ let show=true; Object.keys(st.filters).forEach(i=>{ const q=st.filters[i]; if(q){ const td=r.cells[i]; if(!td||!(td.textContent||'').toLowerCase().includes(q.toLowerCase()))show=false; } }); r.style.display=show?'':'none'; }); }
+function applyGridSort(table,key){ const st=gridStates[key]; const tb=table.tBodies[0]; if(!tb||!st.sort)return; const {i,dir}=st.sort;
+  const rows=[...tb.rows]; rows.sort((a,b)=>{ const x=cellSortKey(a.cells[i]),y=cellSortKey(b.cells[i]);
+    if(typeof x==='number'&&typeof y==='number')return (x-y)*dir; return String(x).localeCompare(String(y),'ja')*dir; });
+  rows.forEach(r=>tb.appendChild(r)); }
+function enhanceGrid(table,key){ if(!table||!table.tHead)return; const st=gridStates[key]||(gridStates[key]={sort:null,filters:{}});
+  const headRow=table.tHead.rows[0]; if(!headRow)return; const ncol=headRow.cells.length;
+  [...headRow.cells].forEach((th,i)=>{ th.style.cursor='pointer'; th.title='クリックで並び替え';
+    th.addEventListener('click',e=>{ if(e.target.tagName==='INPUT')return; const dir=(st.sort&&st.sort.i===i&&st.sort.dir>0)?-1:1; st.sort={i,dir}; applyGridSort(table,key); enhanceArrows(table,key); }); });
+  const frow=table.tHead.insertRow(); frow.className='filter-row';
+  for(let i=0;i<ncol;i++){ const th=document.createElement('th'); const inp=document.createElement('input'); inp.placeholder='🔍'; inp.value=st.filters[i]||'';
+    inp.style.cssText='padding:3px 6px;font-size:11px;font-weight:400;min-width:50px'; inp.addEventListener('click',e=>e.stopPropagation());
+    inp.addEventListener('input',()=>{ st.filters[i]=inp.value; applyGridFilter(table,key); }); th.appendChild(inp); frow.appendChild(th); }
+  enhanceArrows(table,key); applyGridSort(table,key); applyGridFilter(table,key); }
+function enhanceArrows(table,key){ const st=gridStates[key]; const headRow=table.tHead.rows[0];
+  [...headRow.cells].forEach((th,i)=>{ const old=th.querySelector('.sort-ar'); if(old)old.remove(); if(st.sort&&st.sort.i===i){ const a=document.createElement('span'); a.className='sort-ar'; a.textContent=st.sort.dir>0?' ▲':' ▼'; a.style.color='var(--blue)'; th.appendChild(a); } }); }
+
 /* ===== 中間申告 計算（現行法・予定申告方式/前期実績基準） =====
-   - 法人税：予定申告額=前期確定法人税×6/前期月数。10万円以下なら中間申告不要。
-   - 地方法人税・県民税・事業税・市民税：法人税に中間義務がある場合に各確定額×6/月数で予定申告。
-   - 消費税(前期国税年額C・地方消費税除く)：48万円以下=なし／48万円超400万円以下=年1回／400万円超4800万円以下=年3回／4800万円超=年11回。
-     地方消費税=中間消費税(国税)×22/78。
-   - 申告納付期限：各中間課税期間末日の翌日から2月以内（決算月から逆算）。 */
+   法人税割系（法人税・地方法人税・住民税法人税割・事業税・特別法人事業税）の予定申告額：
+     前期確定税額 ÷ 前期月数（1円未満切捨）× 6（100円未満切捨）  ← 税務ソフトと一致
+   均等割：年額 × 6 ÷ 月数（100円未満切捨）
+   消費税(前期国税年額C・地方消費税除く)：48万円以下=なし／48万円超400万円以下=年1回／400万円超4800万円以下=年3回／4800万円超=年11回。
+     1回あたり国税 = C × (中間課税期間月数/前課税期間月数)、地方消費税=中間国税×22/78。
+   法人税の予定申告額が10万円以下の場合は中間申告不要。
+   申告納付期限：各中間課税期間末日の翌日から2月以内（決算月から逆算）。 */
+function yotei(annual,months,kind){ annual=num(annual); months=months||12; if(annual<=0)return 0;
+  if(kind==='kinto') return floor100(annual*6/months);              // 均等割
+  return floor100(Math.floor(annual/months)*6); }                   // 法人税割系（÷月数を先に1円未満切捨）
 function calcInterim(tax){
-  const months=(tax.months&&num(tax.months)>0)?num(tax.months):12; const f6=6/months;
+  const months=(tax.months&&num(tax.months)>0)?num(tax.months):12;
   const corp=num(tax.corp), localCorp=num(tax.localCorp), cons=num(tax.consumption);
-  const corpMid=floor100(corp*f6); const corpRequired=corpMid>100000;
-  const localCorpMid=corpRequired?floor100(localCorp*f6):0;
-  const pref=(tax.pref||[]).map(p=>({name:p.name||'',kenmin:num(p.kenmin),jigyo:num(p.jigyo),
-    kenminMid:corpRequired?floor100(num(p.kenmin)*f6):0, jigyoMid:corpRequired?floor100(num(p.jigyo)*f6):0}));
-  const city=(tax.city||[]).map(c=>({name:c.name||'',shi:num(c.shi),shiMid:corpRequired?floor100(num(c.shi)*f6):0}));
+  const corpMid=yotei(corp,months); const corpRequired=corpMid>100000;
+  const localCorpMid=corpRequired?yotei(localCorp,months):0;
+  const pv=p=>p.kenminTax!=null?p.kenminTax:p.kenmin; // 旧データ互換
+  const pref=(tax.pref||[]).map(p=>{ const kenminTax=num(pv(p)),kenminKinto=num(p.kenminKinto),jigyo=num(p.jigyo),tokubetsu=num(p.tokubetsu);
+    return {name:p.name||'',kenminTax,kenminKinto,jigyo,tokubetsu,
+      kenminMid:corpRequired?(yotei(kenminTax,months)+yotei(kenminKinto,months,'kinto')):0,
+      jigyoMid:corpRequired?(yotei(jigyo,months)+yotei(tokubetsu,months)):0}; });
+  const city=(tax.city||[]).map(c=>{ const shiTax=num(c.shiTax!=null?c.shiTax:c.shi),shiKinto=num(c.shiKinto);
+    return {name:c.name||'',shiTax,shiKinto, shiMid:corpRequired?(yotei(shiTax,months)+yotei(shiKinto,months,'kinto')):0}; });
   const kenminMid=pref.reduce((s,p)=>s+p.kenminMid,0), jigyoMid=pref.reduce((s,p)=>s+p.jigyoMid,0), shiMid=city.reduce((s,p)=>s+p.shiMid,0);
   let cTimes=0,cNat=0;
   if(cons>480000&&cons<=4000000){ cTimes=1; cNat=floor100(cons*6/months); }
@@ -442,6 +479,12 @@ function calcInterim(tax){
     consTimes:cTimes, consNat:cNat, consLoc:cLoc, consTot:cTot, consOffsets, natTotal,
     corpOffset:8, subject:(corpRequired||cTimes>0) };
 }
+/* 確定法人税等＝法人税＋地方法人税＋県民税＋事業税＋特別法人事業税＋市民税の年税額合計 */
+function confirmedCorpTotal(tax){ if(!tax)return 0; let t=num(tax.corp)+num(tax.localCorp);
+  (tax.pref||[]).forEach(p=>{ t+=num(p.kenminTax!=null?p.kenminTax:p.kenmin)+num(p.kenminKinto)+num(p.jigyo)+num(p.tokubetsu); });
+  (tax.city||[]).forEach(c=>{ t+=num(c.shiTax!=null?c.shiTax:c.shi)+num(c.shiKinto); }); return t; }
+/* 確定消費税＝国税＋地方消費税(国税×22/78) */
+function confirmedConsTotal(tax){ const n=tax?num(tax.consumption):0; return n?n+Math.floor(n*22/78):0; }
 /* 中間納付イベント（暦年月ごと）を生成。base=決算の絶対月index */
 function interimEvents(tax, M, Y){
   if(!M) return [];
@@ -534,20 +577,22 @@ function renderFilingDetail(){
     <h2 style="margin-left:6px">${filingYear}年 ${M}月決算 申告業務</h2><span class="chip blue">${wareki(filingYear)}</span>
     <div class="toolbar"><button onclick="openSteps()">⚙ 工程を編集</button><button onclick="exportFilingMonth()">📤 Excel出力</button></div></div>`;
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>${M}月決算の契約中顧問先がありません。顧問先の決算月・ステータスをご確認ください。</div></div>`; document.getElementById('filingView').innerHTML=html; return; }
-  let head=`<tr><th class="name">顧問先</th><th>主担当者</th><th>備考</th>`+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`<th>確定法人税</th><th>確定消費税</th><th>中間申告</th></tr>`;
+  let head=`<tr><th class="name">顧問先</th><th>主担当者</th><th>備考</th>`+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`<th>確定法人税等</th><th>確定消費税</th><th>中間申告</th></tr>`;
   let body=cs.map(c=>{ const f=getFiling(filingYear,c.id); const tx=f.tax||{}; const res=calcInterim(tx);
+    const corpTot=confirmedCorpTotal(tx), consTot=confirmedConsTotal(tx);
     let row=`<td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td><td>${esc(c.staff||'')}</td>
       <td><input style="min-width:90px;padding:5px 7px" value="${esc(f.note||'')}" onchange="setFilingNote('${c.id}',this.value)"></td>`;
     row+=steps.map(s=>{ const v=f.cells&&f.cells[s.name]; let cls='todo',txt='－';
       if(v){ cls='done'; txt=fmtMD(v); } else if(s.due){ cls=(new Date(s.due)<today)?'over':'todo'; txt='未('+fmtMD(s.due)+')'; }
       return `<td><span class="cell ${cls}" onclick="editCell(event,'${c.id}','${encodeURIComponent(s.name)}')">${txt}</span></td>`; }).join('');
-    const flag=res.subject?'<span class="chip amber">対象</span>':(tx.corp||tx.consumption?'<span class="chip gray">対象外</span>':'<span class="chip gray">未入力</span>');
-    row+=`<td class="yen tax-mini">${tx.corp?yen(num(tx.corp)):'－'}</td><td class="yen tax-mini">${tx.consumption?yen(num(tx.consumption)):'－'}</td>
+    const flag=res.subject?'<span class="chip amber">対象</span>':((corpTot||consTot)?'<span class="chip gray">対象外</span>':'<span class="chip gray">未入力</span>');
+    row+=`<td class="yen tax-mini">${corpTot?yen(corpTot):'－'}</td><td class="yen tax-mini">${consTot?yen(consTot):'－'}</td>
       <td>${flag} <button class="text sm" onclick="openTax('${c.id}')">計算/入力</button></td>`;
     return `<tr>${row}</tr>`; }).join('');
   html+=`<div class="grid-wrap"><table class="grid"><thead>${head}</thead><tbody>${body}</tbody></table></div>
-    <div class="hint" style="margin-top:12px">※ セルをクリックで完了日を入力。「計算/入力」で確定税額を入力すると翌期の中間申告が自動計算され、<b>中間申告管理</b>に反映されます。</div>`;
+    <div class="hint" style="margin-top:12px">※ セルをクリックで完了日を入力。「計算/入力」で確定税額を入力すると翌期の中間申告が自動計算され、<b>中間申告管理</b>に反映されます。ヘッダをクリックで並び替え、各列の🔍で絞り込みできます。</div>`;
   document.getElementById('filingView').innerHTML=html;
+  enhanceGrid(document.querySelector('#filingView table.grid'),'filing'+M);
 }
 function setFilingNote(cid,v){ ensureFiling(filingYear,cid).note=v; persist(); }
 /* セル編集 */
@@ -586,12 +631,14 @@ function openTax(cid){ const c=clientById(cid); const M=fiscalMonthNum(c.fiscal)
   (tx.pref&&tx.pref.length?tx.pref:[{}]).forEach(p=>addPrefRow(p)); (tx.city&&tx.city.length?tx.city:[{}]).forEach(p=>addCityRow(p));
   calcAndRender(); openModal('taxModal'); }
 function addPrefRow(p={}){ const box=document.getElementById('tx_pref'); const d=document.createElement('div'); d.className='mr';
-  d.innerHTML=`<input class="pr_name" placeholder="例: ○○県" value="${esc(p.name||'')}"><input class="pr_kenmin" type="number" placeholder="県民税(円)" value="${p.kenmin!=null?esc(p.kenmin):''}"><input class="pr_jigyo" type="number" placeholder="事業税(円)" value="${p.jigyo!=null?esc(p.jigyo):''}"><button class="icon" onclick="this.closest('.mr').remove()">🗑</button>`; box.appendChild(d); }
+  const kt=(p.kenminTax!=null?p.kenminTax:p.kenmin);
+  d.innerHTML=`<input class="pr_name" placeholder="例: ○○県" value="${esc(p.name||'')}"><input class="pr_kt" type="number" placeholder="円" value="${kt!=null?esc(kt):''}"><input class="pr_kk" type="number" placeholder="円" value="${p.kenminKinto!=null?esc(p.kenminKinto):''}"><input class="pr_jigyo" type="number" placeholder="円" value="${p.jigyo!=null?esc(p.jigyo):''}"><input class="pr_tok" type="number" placeholder="円" value="${p.tokubetsu!=null?esc(p.tokubetsu):''}"><button class="icon" onclick="this.closest('.mr').remove()">🗑</button>`; box.appendChild(d); }
 function addCityRow(p={}){ const box=document.getElementById('tx_city'); const d=document.createElement('div'); d.className='mr';
-  d.innerHTML=`<input class="ci_name" placeholder="例: ○○市" value="${esc(p.name||'')}"><input class="ci_shi" type="number" placeholder="市民税(円)" value="${p.shi!=null?esc(p.shi):''}"><button class="icon" onclick="this.closest('.mr').remove()">🗑</button>`; box.appendChild(d); }
+  const st=(p.shiTax!=null?p.shiTax:p.shi);
+  d.innerHTML=`<input class="ci_name" placeholder="例: ○○市" value="${esc(p.name||'')}"><input class="ci_st" type="number" placeholder="円" value="${st!=null?esc(st):''}"><input class="ci_sk" type="number" placeholder="円" value="${p.shiKinto!=null?esc(p.shiKinto):''}"><button class="icon" onclick="this.closest('.mr').remove()">🗑</button>`; box.appendChild(d); }
 function gatherTax(){ const months=num(val('tx_months'))||12;
-  const pref=[...document.querySelectorAll('#tx_pref .mr')].map(d=>({name:d.querySelector('.pr_name').value.trim(),kenmin:num(d.querySelector('.pr_kenmin').value),jigyo:num(d.querySelector('.pr_jigyo').value)})).filter(p=>p.name||p.kenmin||p.jigyo);
-  const city=[...document.querySelectorAll('#tx_city .mr')].map(d=>({name:d.querySelector('.ci_name').value.trim(),shi:num(d.querySelector('.ci_shi').value)})).filter(p=>p.name||p.shi);
+  const pref=[...document.querySelectorAll('#tx_pref .mr')].map(d=>({name:d.querySelector('.pr_name').value.trim(),kenminTax:num(d.querySelector('.pr_kt').value),kenminKinto:num(d.querySelector('.pr_kk').value),jigyo:num(d.querySelector('.pr_jigyo').value),tokubetsu:num(d.querySelector('.pr_tok').value)})).filter(p=>p.name||p.kenminTax||p.kenminKinto||p.jigyo||p.tokubetsu);
+  const city=[...document.querySelectorAll('#tx_city .mr')].map(d=>({name:d.querySelector('.ci_name').value.trim(),shiTax:num(d.querySelector('.ci_st').value),shiKinto:num(d.querySelector('.ci_sk').value)})).filter(p=>p.name||p.shiTax||p.shiKinto);
   return { months, corp:num(val('tx_corp')), localCorp:num(val('tx_localCorp')), consumption:num(val('tx_cons')), pref, city }; }
 function calcAndRender(){ const c=clientById(val('tx_clientId')); const M=c?fiscalMonthNum(c.fiscal):0; const r=calcInterim(gatherTax());
   const dueMonth=M?(((M-1+8)%12)+1):null;
@@ -638,31 +685,42 @@ function renderInterimOverview(){
       <div class="s">${rows.length}件${rows.length?` ／ 完了 ${done}/${rows.length}`:''}</div></div>`; }
   html+=`</div>`; document.getElementById('interimView').innerHTML=html;
 }
-function renderInterimDetail(){ const CY=interimYear, CM=interimMonth; const rows=interimRows(CY,CM);
+const INTERIM_COLS=[{k:'code',label:'コード'},{k:'name',label:'顧問先'},{k:'fiscal',label:'決算'},
+  {k:'corp',label:'法人税',num:1},{k:'localCorp',label:'地方法人税',num:1},{k:'kenmin',label:'県民税',num:1},
+  {k:'jigyo',label:'事業税',num:1},{k:'shi',label:'市税',num:1},{k:'cons',label:'消費税',num:1},
+  {k:'consLabel',label:'消費税回'},{k:'total',label:'合計額',num:1},{k:'payMethod',label:'納付方法'},{k:'done',label:'完了'}];
+function enabledInterimCols(){ const sel=data.settings.interimCols; if(Array.isArray(sel)&&sel.length) return INTERIM_COLS.filter(c=>sel.includes(c.k)); return INTERIM_COLS; }
+function interimCellHTML(col,c,ev,CY,CM){ switch(col.k){
+  case 'code': return `<td>${esc(c.code||'')}</td>`;
+  case 'name': return `<td>${esc(c.name)}</td>`;
+  case 'fiscal': return `<td>${fiscalMonthNum(c.fiscal)}月</td>`;
+  case 'consLabel': return `<td>${ev.consLabel?ev.consLabel+'回目':'－'}</td>`;
+  case 'payMethod': return `<td>${c.payMethod?`<span class="chip ${c.payMethod==='ダイレクト納付'?'blue':'gray'}">${esc(c.payMethod)}</span>`:'－'}</td>`;
+  case 'done': { const done=!!data.interimDone[CY+'-'+CM+'-'+c.id]; return `<td style="text-align:center"><input type="checkbox" style="width:auto" ${done?'checked':''} onchange="toggleInterimDone('${c.id}',this.checked)"></td>`; }
+  case 'total': return `<td class="yen" style="text-align:right;font-weight:600">${yen(ev.total)}</td>`;
+  default: return `<td class="yen" style="text-align:right">${ev[col.k]?yen(ev[col.k]):'－'}</td>`; } }
+function renderInterimDetail(){ const CY=interimYear, CM=interimMonth; const rows=interimRows(CY,CM); const cols=enabledInterimCols();
   let html=`<div class="page-head"><button class="text" onclick="backInterim()">← 一覧へ戻る</button>
     <h2 style="margin-left:6px">${CY}年${CM}月中間申告</h2><span class="chip blue">${wareki(CY)}</span>
     <div class="toolbar"><button onclick="exportInterimMonth()">📤 Excel出力</button></div></div>
-    <div class="hint" style="margin-bottom:14px">この月（${CY}年${CM}月）に中間申告・納付期限が到来する顧問先です（決算月に関係なく集計）。</div>`;
+    <div class="hint" style="margin-bottom:14px">この月（${CY}年${CM}月）に中間申告・納付期限が到来する顧問先です（決算月に関係なく集計）。表示項目は設定から変更できます。</div>`;
   if(!rows.length){ html+=`<div class="card"><div class="empty"><div class="big">🗓</div>${CY}年${CM}月に納付期限が到来する中間申告はありません。</div></div>`; document.getElementById('interimView').innerHTML=html; return; }
-  let head=`<tr><th>コード</th><th>顧問先</th><th>決算</th><th style="text-align:right">法人税</th><th style="text-align:right">地方法人税</th><th style="text-align:right">県民税</th><th style="text-align:right">事業税</th><th style="text-align:right">市税</th><th style="text-align:right">消費税</th><th>消費税回</th><th style="text-align:right">合計額</th><th>納付方法</th><th>完了</th></tr>`;
-  let body=rows.map(({client:c,ev})=>{ const key=CY+'-'+CM+'-'+c.id; const done=!!data.interimDone[key]; const M=fiscalMonthNum(c.fiscal);
-    const pm=c.payMethod?`<span class="chip ${c.payMethod==='ダイレクト納付'?'blue':'gray'}">${esc(c.payMethod)}</span>`:'－';
-    const cellY=v=>`<td class="yen" style="text-align:right">${v?yen(v):'－'}</td>`;
-    return `<tr style="${done?'opacity:.6':''}"><td>${esc(c.code||'')}</td><td>${esc(c.name)}</td><td>${M}月</td>
-      ${cellY(ev.corp)}${cellY(ev.localCorp)}${cellY(ev.kenmin)}${cellY(ev.jigyo)}${cellY(ev.shi)}${cellY(ev.cons)}
-      <td>${ev.consLabel?ev.consLabel+'回目':'－'}</td><td class="yen" style="text-align:right;font-weight:600">${yen(ev.total)}</td><td>${pm}</td>
-      <td style="text-align:center"><input type="checkbox" style="width:auto" ${done?'checked':''} onchange="toggleInterimDone('${c.id}',this.checked)"></td></tr>`; }).join('');
-  const sum=k=>rows.reduce((s,r)=>s+r.ev[k],0);
-  let foot=`<tr style="background:#fafbfc;font-weight:600"><td></td><td>合計</td><td></td>
-    <td class="yen" style="text-align:right">${yen(sum('corp'))}</td><td class="yen" style="text-align:right">${yen(sum('localCorp'))}</td><td class="yen" style="text-align:right">${yen(sum('kenmin'))}</td><td class="yen" style="text-align:right">${yen(sum('jigyo'))}</td><td class="yen" style="text-align:right">${yen(sum('shi'))}</td><td class="yen" style="text-align:right">${yen(sum('cons'))}</td><td></td><td class="yen" style="text-align:right">${yen(sum('total'))}</td><td></td><td></td></tr>`;
+  let head=`<tr>`+cols.map(col=>`<th style="${col.num?'text-align:right':''}">${col.label}</th>`).join('')+`</tr>`;
+  let body=rows.map(({client:c,ev})=>{ const done=!!data.interimDone[CY+'-'+CM+'-'+c.id];
+    return `<tr style="${done?'opacity:.6':''}">`+cols.map(col=>interimCellHTML(col,c,ev,CY,CM)).join('')+`</tr>`; }).join('');
+  const sum=k=>rows.reduce((s,r)=>s+r.ev[k],0); let first=true;
+  let foot=`<tr style="background:#fafbfc;font-weight:600">`+cols.map(col=>{ if(col.num)return `<td class="yen" style="text-align:right">${yen(sum(col.k))}</td>`;
+    if(first){ first=false; return `<td>合計</td>`; } return `<td></td>`; }).join('')+`</tr>`;
   html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>`;
   document.getElementById('interimView').innerHTML=html;
+  enhanceGrid(document.querySelector('#interimView table.grid'),'interim');
 }
 function toggleInterimDone(cid,checked){ const key=interimYear+'-'+interimMonth+'-'+cid; if(checked)data.interimDone[key]=true; else delete data.interimDone[key]; persist(); renderInterimDetail(); }
-function exportInterimMonth(){ const CY=interimYear, CM=interimMonth; const rows=interimRows(CY,CM);
-  const head=['コード','顧問先','決算月','法人税','地方法人税','県民税','事業税','市税','消費税','消費税回','合計額','納付方法','完了'];
-  const aoa=[head]; rows.forEach(({client:c,ev})=>{ const done=!!data.interimDone[CY+'-'+CM+'-'+c.id];
-    aoa.push([c.code||'',c.name,fiscalMonthNum(c.fiscal)+'月',ev.corp,ev.localCorp,ev.kenmin,ev.jigyo,ev.shi,ev.cons,ev.consLabel?ev.consLabel+'回目':'',ev.total,c.payMethod||'',done?'完了':'']); });
+function exportInterimMonth(){ const CY=interimYear, CM=interimMonth; const rows=interimRows(CY,CM); const cols=enabledInterimCols();
+  const head=cols.map(c=>c.label); const aoa=[head];
+  rows.forEach(({client:c,ev})=>{ const done=!!data.interimDone[CY+'-'+CM+'-'+c.id];
+    aoa.push(cols.map(col=>{ switch(col.k){ case 'code':return c.code||''; case 'name':return c.name; case 'fiscal':return fiscalMonthNum(c.fiscal)+'月';
+      case 'consLabel':return ev.consLabel?ev.consLabel+'回目':''; case 'payMethod':return c.payMethod||''; case 'done':return done?'完了':''; default:return ev[col.k]; } })); });
   const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,`${CY}年${CM}月中間`);
   XLSX.writeFile(wb,`${CY}年${CM}月中間申告_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
 
@@ -698,8 +756,9 @@ function renderModule(key){
       return `<td><span class="cell ${cls}" onclick="editModuleCell(event,'${key}','${c.id}','${encodeURIComponent(s.name)}')">${txt}</span></td>`; }).join('');
     return `<tr>${row}</tr>`; }).join('');
   html+=`<div class="grid-wrap"><table class="grid"><thead>${head}</thead><tbody>${body}</tbody></table></div>
-    <div class="hint" style="margin-top:12px">※ セルをクリックで完了日を入力できます。</div>`;
+    <div class="hint" style="margin-top:12px">※ セルをクリックで完了日を入力できます。ヘッダをクリックで並び替え、各列の🔍で絞り込みできます。</div>`;
   document.getElementById(key+'View').innerHTML=html;
+  enhanceGrid(document.querySelector('#'+key+'View table.grid'),'mod_'+key);
 }
 function exportModule(key){ const def=getModuleDef(key); const year=getModuleYear(key); const steps=getModuleStore(key).steps; const cs=moduleClients(key);
   const head=['コード','顧問先名','主担当者','備考',...steps.map(s=>s.name+(s.due?`(${fmtMD(s.due)})`:''))]; const aoa=[head];
@@ -738,6 +797,7 @@ function renderGensen(){
       <div class="hint" style="margin-top:12px">※ 納期特例：1〜6月分は7/10、7〜12月分は翌年1/20が納付期限です。</div>`;
   }
   document.getElementById('gensenView').innerHTML=html;
+  enhanceGrid(document.querySelector('#gensenView table.grid'),'gensen_'+gensenTab);
 }
 function exportGensen(){ const cs=activeClients().filter(c=>(gensenTab==='monthly')?(c.gensenStatus!=='納期特例'):(c.gensenStatus==='納期特例'));
   let head,aoa;
@@ -917,18 +977,22 @@ function onProviderChange(){ const p=val('setAiProvider')||'gemini';
   else { document.getElementById('aiKeyLabel').textContent='Claude APIキー'; document.getElementById('setAiKey').placeholder='sk-ant-...';
     document.getElementById('aiKeyHint').innerHTML='<a class="link" href="https://console.anthropic.com/" target="_blank">Anthropic Console</a> で取得。キーはこの端末内にのみ保存されます。';
     setVal('setAiKey',data.settings.claudeApiKey||''); setVal('setAiModel',data.settings.claudeModel||'claude-opus-4-8'); } }
+function renderInterimColsSettings(){ const sel=Array.isArray(data.settings.interimCols)&&data.settings.interimCols.length?data.settings.interimCols:INTERIM_COLS.map(c=>c.k);
+  document.getElementById('interimColsBox').innerHTML=INTERIM_COLS.map(c=>`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" style="width:auto" class="ic_col" value="${c.k}" ${sel.includes(c.k)?'checked':''} ${(c.k==='name')?'disabled':''}> ${c.label}</label>`).join(''); }
 function saveSettings(){ data.settings.folderUrl=val('setFolderUrl'); data.settings.clientId=val('setClientId');
   const p=val('setAiProvider')||'gemini'; data.settings.aiProvider=p;
   if(p==='gemini'){ data.settings.geminiApiKey=val('setAiKey'); data.settings.geminiModel=val('setAiModel')||'gemini-2.5-flash'; }
   else { data.settings.claudeApiKey=val('setAiKey'); data.settings.claudeModel=val('setAiModel')||'claude-opus-4-8'; }
-  persist(false); toast('設定を保存しました','ok'); }
+  const cols=[...document.querySelectorAll('.ic_col:checked')].map(i=>i.value); if(!cols.includes('name'))cols.unshift('name');
+  data.settings.interimCols=cols;
+  persist(false); renderInterim(); toast('設定を保存しました','ok'); }
 function openDriveFolder(){ const url=val('setFolderUrl')||data.settings.folderUrl; if(!url){ toast('フォルダURLを入力してください','err'); return; } window.open(url,'_blank'); }
 function exportBackup(){ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='komon-manager-data.json'; a.click(); URL.revokeObjectURL(a.href); toast('データを書き出しました','ok'); }
 function importBackup(ev){ const f=ev.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=e=>{ try{ applyImportedData(JSON.parse(e.target.result)); toast('データを取り込みました','ok'); }catch(err){ toast('読み込み失敗: '+err.message,'err'); } ev.target.value=''; }; r.readAsText(f); }
 function applyImportedData(d){ data.clients=d.clients||[]; data.filings=d.filings||{}; data.filingSteps=d.filingSteps||{}; data.interimDone=d.interimDone||{}; data.modules=d.modules||{}; data.gensen=d.gensen||{monthly:{},special:{}}; data.clientSummaries=d.clientSummaries||{}; data.docLists=d.docLists||[]; data.minutes=d.minutes||[];
   if(d.settings){ data.settings.folderUrl=d.settings.folderUrl||data.settings.folderUrl; data.settings.clientId=d.settings.clientId||data.settings.clientId; data.settings.claudeApiKey=d.settings.claudeApiKey||data.settings.claudeApiKey; data.settings.claudeModel=d.settings.claudeModel||data.settings.claudeModel; }
   filingMonth=null; interimMonth=null; persist(false); restoreSettingsUI(); refreshAll(); }
-function restoreSettingsUI(){ setVal('setFolderUrl',data.settings.folderUrl); setVal('setClientId',data.settings.clientId); setVal('setAiProvider',data.settings.aiProvider||'gemini'); onProviderChange(); }
+function restoreSettingsUI(){ setVal('setFolderUrl',data.settings.folderUrl); setVal('setClientId',data.settings.clientId); setVal('setAiProvider',data.settings.aiProvider||'gemini'); onProviderChange(); renderInterimColsSettings(); }
 
 /* ===== Google Drive 同期 ===== */
 const DriveSync=(function(){
