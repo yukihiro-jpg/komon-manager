@@ -31,6 +31,18 @@
     border-bottom:3px solid transparent;white-space:nowrap;transition:.15s;}
   .tabs a:hover{color:var(--text);background:#f1f3f4;border-radius:8px 8px 0 0;}
   .tabs a.active{color:var(--blue);border-bottom-color:var(--blue);}
+  .tabs a.right{margin-left:auto;}
+  .sub-tabs{display:flex;gap:8px;margin-bottom:16px;}
+  .sub-tabs button{border-radius:20px;}
+  .sub-tabs button.on{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .ai-btn{font-size:12px;padding:5px 10px;border-radius:14px;border:1px solid #d6c5f0;color:#7b2ff7;background:#faf5ff;}
+  .ai-btn:hover{background:#f3e8ff;}
+  .ai-box{background:#faf5ff;border:1px solid #e9d8fd;border-radius:10px;padding:14px 16px;font-size:13px;line-height:1.8;white-space:pre-wrap;}
+  .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:7px;}
+  .bar-row .lbl{width:84px;font-size:13px;color:var(--muted);text-align:right;flex-shrink:0;}
+  .bar-row .bar{height:20px;background:var(--blue);border-radius:4px;min-width:2px;}
+  .bar-row .val{font-size:12px;color:var(--muted);}
+  .analysis-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px;}
   main{padding:24px 28px;max-width:1500px;margin:0 auto;}
   .page{display:none;} .page.active{display:block;animation:fade .2s;}
   @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
@@ -135,9 +147,16 @@
     <a data-page="clients" onclick="showPage('clients')">顧問先</a>
     <a data-page="filing" onclick="showPage('filing')">確定申告管理</a>
     <a data-page="interim" onclick="showPage('interim')">中間申告管理</a>
+    <a data-page="shotoku" onclick="showPage('shotoku')">所得税管理</a>
+    <a data-page="gensen" onclick="showPage('gensen')">源泉税管理</a>
+    <a data-page="nencho" onclick="showPage('nencho')">年末調整管理</a>
+    <a data-page="hotei" onclick="showPage('hotei')">法定調書管理</a>
+    <a data-page="shokyaku" onclick="showPage('shokyaku')">償却資産管理</a>
+    <a data-page="sonota" onclick="showPage('sonota')">その他管理</a>
     <a data-page="docs" onclick="showPage('docs')">資料回収</a>
     <a data-page="minutes" onclick="showPage('minutes')">議事録</a>
-    <a data-page="settings" onclick="showPage('settings')">設定</a>
+    <a data-page="analysis" onclick="showPage('analysis')">分析</a>
+    <a data-page="settings" class="right" onclick="showPage('settings')">設定</a>
   </nav>
 </header>
 
@@ -163,6 +182,13 @@
 
   <section id="page-filing" class="page"><div id="filingView"></div></section>
   <section id="page-interim" class="page"><div id="interimView"></div></section>
+  <section id="page-shotoku" class="page"><div id="shotokuView"></div></section>
+  <section id="page-gensen" class="page"><div id="gensenView"></div></section>
+  <section id="page-nencho" class="page"><div id="nenchoView"></div></section>
+  <section id="page-hotei" class="page"><div id="hoteiView"></div></section>
+  <section id="page-shokyaku" class="page"><div id="shokyakuView"></div></section>
+  <section id="page-sonota" class="page"><div id="sonotaView"></div></section>
+  <section id="page-analysis" class="page"><div id="analysisView"></div></section>
 
   <section id="page-docs" class="page">
     <div class="page-head"><h2>資料回収リスト</h2>
@@ -194,6 +220,14 @@
         <button onclick="DriveSync.connect()">🔗 ドライブに接続</button>
         <button onclick="openDriveFolder()">📂 フォルダを開く</button>
         <button onclick="DriveSync.loadFromDrive(true)">📥 取り込む</button></div>
+      <h3 style="font-weight:500">AI（議事録の校正・まとめ）</h3>
+      <div class="field full" style="margin-bottom:14px"><label>Claude APIキー</label>
+        <input id="setClaudeKey" type="password" placeholder="sk-ant-...">
+        <span class="hint">議事録のAI校正・事業年度まとめに使用します。<a class="link" href="https://console.anthropic.com/" target="_blank">Anthropic Console</a>で取得。キーはこの端末内にのみ保存されます。</span></div>
+      <div class="field full" style="margin-bottom:14px"><label>モデル</label>
+        <select id="setClaudeModel"><option value="claude-opus-4-8">Claude Opus 4.8（高品質）</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6（標準）</option><option value="claude-haiku-4-5">Claude Haiku 4.5（高速・低コスト）</option></select></div>
+      <div class="row-flex" style="margin-bottom:24px"><button class="primary" onclick="saveSettings()">💾 設定を保存</button></div>
+
       <h3 style="font-weight:500">手動バックアップ</h3>
       <div class="row-flex" style="margin-bottom:24px">
         <button onclick="exportBackup()">⬇ 書き出し (JSON)</button>
@@ -230,6 +264,7 @@
       <div class="field"><label>メールアドレス</label><input id="cl_email"></div>
       <div class="field"><label>契約区分</label><input id="cl_contract" placeholder="月次顧問 / スポット など"></div>
       <div class="field"><label>納付方法</label><select id="cl_payMethod"><option>ダイレクト納付</option><option>紙納付書</option></select></div>
+      <div class="field"><label>源泉税納付ステータス</label><select id="cl_gensenStatus"><option>毎月納付</option><option>納期特例</option></select></div>
       <div class="field"><label>主担当者</label><input id="cl_staff"></div>
       <div class="field"><label>顧問料(月額)</label><input id="cl_fee" type="number"></div>
       <div class="field"><label>ステータス</label><select id="cl_status"><option>契約中</option><option>休止</option><option>解約</option></select></div>
@@ -300,10 +335,21 @@
       <div class="field"><label class="req">日付</label><input id="mn_date" type="date"></div>
       <div class="field full"><label class="req">件名</label><input id="mn_title"></div>
       <div class="field full"><label>出席者</label><input id="mn_attendees"></div>
-      <div class="field full"><label>内容</label><textarea id="mn_content" rows="6"></textarea></div>
+      <div class="field full"><label>内容 <button class="ai-btn" style="margin-left:8px" onclick="aiPolishMinute()">🪄 AI校正</button></label><textarea id="mn_content" rows="6"></textarea>
+        <span class="hint" id="mn_aiHint"></span></div>
       <div class="field full"><label>決定事項・next action</label><textarea id="mn_actions" rows="3"></textarea></div>
     </div></div>
   <div class="modal-foot"><button class="text" onclick="closeModal('minuteModal')">キャンセル</button><button class="primary" onclick="saveMinute()">保存</button></div>
+</div></div>
+
+<!-- 議事録まとめモーダル -->
+<div class="modal-bg" id="summaryModal"><div class="modal wide">
+  <div class="modal-head"><h3 id="summaryModalTitle">議事録まとめ</h3><button class="icon x" onclick="closeModal('summaryModal')">✕</button></div>
+  <div class="modal-body"><input type="hidden" id="sm_cid">
+    <div class="hint" style="margin-bottom:14px">事業年度ごとに議事録をAIでまとめます。決算時にこの内容を確認することで、当期の論点や決定事項を踏まえた申告ができます。</div>
+    <div id="summaryBody"></div>
+  </div>
+  <div class="modal-foot"><button class="text" onclick="closeModal('summaryModal')">閉じる</button></div>
 </div></div>
 
 <input type="date" id="cellEditor">
@@ -312,9 +358,12 @@
 <script>
 /* ===== データ ===== */
 const LS_KEY='komonManagerData_v3';
-let data={ clients:[], filings:{}, filingSteps:{}, interimDone:{}, docLists:[], minutes:[], settings:{folderUrl:'',clientId:''} };
+let data={ clients:[], filings:{}, filingSteps:{}, interimDone:{}, modules:{}, gensen:{monthly:{},special:{}}, clientSummaries:{}, docLists:[], minutes:[], settings:{folderUrl:'',clientId:'',claudeApiKey:'',claudeModel:'claude-opus-4-8'} };
 let filingYear=new Date().getFullYear(), filingMonth=null;     // 確定申告管理：決算年・選択中の決算月
 let interimYear=new Date().getFullYear(), interimMonth=null;   // 中間申告管理：暦年・選択中の月
+let moduleYear={};                                              // 各管理モジュールの対象年
+let gensenYear=new Date().getFullYear(), gensenTab='monthly';   // 源泉税管理
+let analysisMetric='fiscal';                                    // 分析の表示切替
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function val(id){ return (document.getElementById(id).value||'').trim(); }
@@ -329,12 +378,16 @@ const MONTHS=[...Array(12)].map((_,i)=>(i+1)+'月');
 function wareki(y){ if(y>=2019)return '令和'+(y-2018)+'年'; if(y>=1989)return '平成'+(y-1988)+'年'; return y+'年'; }
 const DEFAULT_STEPS=['資料受取','会計入力','申告書作成','申告書チェック_1回目','申告書チェック_2回目','申告書セット','押印・納付書','申告','返却用セット','返却'];
 
-function loadLocal(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const d=JSON.parse(raw); data=Object.assign(data,d); data.settings=Object.assign({folderUrl:'',clientId:''},d.settings||{}); ['filings','filingSteps','interimDone'].forEach(k=>{ if(!data[k])data[k]={}; }); } }catch(e){console.warn(e);} }
+function loadLocal(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const d=JSON.parse(raw); data=Object.assign(data,d); data.settings=Object.assign({folderUrl:'',clientId:'',claudeApiKey:'',claudeModel:'claude-opus-4-8'},d.settings||{}); ['filings','filingSteps','interimDone','modules','clientSummaries'].forEach(k=>{ if(!data[k])data[k]={}; }); if(!data.gensen)data.gensen={monthly:{},special:{}}; } }catch(e){console.warn(e);} }
 let saveTimer=null;
 function persist(sync=true){ localStorage.setItem(LS_KEY,JSON.stringify(data)); if(sync){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>DriveSync.saveToDrive(),1500); } }
-function refreshAll(){ renderDashboard(); renderClients(); renderFiling(); renderInterim(); renderDocs(); renderMinutes(); populateClientSelects(); }
+function refreshAll(){ renderDashboard(); renderClients(); renderFiling(); renderInterim(); renderDocs(); renderMinutes(); populateClientSelects();
+  const act=document.querySelector('.tabs a.active'); const p=act&&act.dataset.page;
+  if(p&&MODULES.some(m=>m.key===p))renderModule(p); else if(p==='gensen')renderGensen(); else if(p==='analysis')renderAnalysis(); }
 
-function showPage(p){ document.querySelectorAll('.page').forEach(s=>s.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); document.querySelectorAll('.tabs a').forEach(a=>a.classList.toggle('active',a.dataset.page===p)); }
+function showPage(p){ document.querySelectorAll('.page').forEach(s=>s.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); document.querySelectorAll('.tabs a').forEach(a=>a.classList.toggle('active',a.dataset.page===p));
+  if(MODULES.some(m=>m.key===p)) renderModule(p);
+  else if(p==='gensen') renderGensen(); else if(p==='analysis') renderAnalysis(); }
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 let toastTimer=null;
@@ -402,11 +455,11 @@ function renderDashboard(){
     .map(([l,n])=>`<div class="stat"><div class="n">${n}</div><div class="l">${esc(l)}</div></div>`).join('');
   const today=new Date(); today.setHours(0,0,0,0); const ups=[];
   activeClients().forEach(c=>{ const M=fiscalMonthNum(c.fiscal); if(!M)return; const f=getFiling(filingYear,c.id);
-    getSteps(M).forEach(s=>{ if(s.due && !(f.cells&&f.cells[s.name])) ups.push({client:c.name,step:s.name,due:s.due,fm:M+'月決算'}); }); });
+    getSteps(M).forEach(s=>{ if(s.due && !(f.cells&&f.cells[s.name])) ups.push({client:c.name,step:s.name,due:s.due,fm:M+'月決算',m:M}); }); });
   const list=ups.map(u=>({...u,d:new Date(u.due)})).filter(u=>!isNaN(u.d)).sort((a,b)=>a.d-b.d).slice(0,10);
   document.getElementById('dashUpcoming').innerHTML=list.length?
     `<table><thead><tr><th>期限</th><th>顧問先</th><th>決算</th><th>工程</th></tr></thead><tbody>`+
-    list.map(u=>{ const over=u.d<today; return `<tr><td style="${over?'color:var(--danger);font-weight:600':''}">${u.due}${over?'（超過）':''}</td><td>${esc(u.client)}</td><td>${esc(u.fm)}</td><td>${esc(u.step)}</td></tr>`; }).join('')+`</tbody></table>`
+    list.map(u=>{ const over=u.d<today; return `<tr style="cursor:pointer" onclick="gotoFiling(${u.m})"><td style="${over?'color:var(--danger);font-weight:600':''}">${u.due}${over?'（超過）':''}</td><td><span class="link">${esc(u.client)}</span></td><td>${esc(u.fm)}</td><td>${esc(u.step)}</td></tr>`; }).join('')+`</tbody></table>`
     :`<div class="empty">${filingYear}年度の未完了工程はありません（工程の期限を設定すると表示されます）</div>`;
 }
 
@@ -423,28 +476,31 @@ function renderClients(){
       <td>${c.payMethod?`<span class="chip ${c.payMethod==='ダイレクト納付'?'blue':'gray'}">${esc(c.payMethod)}</span>`:''}</td>
       <td>${esc(c.staff||'')}</td>
       <td><span class="chip ${c.status==='解約'?'red':c.status==='休止'?'amber':'green'}">${esc(c.status||'契約中')}</span></td>
-      <td class="actions"><button class="text sm" onclick="openClientModal('${c.id}')">編集</button><button class="text sm danger" onclick="deleteClient('${c.id}')">削除</button></td></tr>`).join('')+`</tbody></table>`;
+      <td class="actions"><button class="text sm" onclick="openSummary('${c.id}')">📋 まとめ</button><button class="text sm" onclick="openClientModal('${c.id}')">編集</button><button class="text sm danger" onclick="deleteClient('${c.id}')">削除</button></td></tr>`).join('')+`</tbody></table>`;
 }
-const CL_FIELDS=['name','kana','code','type','rep','corpno','zip','fiscal','addr','tel','email','contract','payMethod','staff','fee','status','notes'];
+const CL_FIELDS=['name','kana','code','type','rep','corpno','zip','fiscal','addr','tel','email','contract','payMethod','gensenStatus','staff','fee','status','notes'];
 function openClientModal(id){ document.getElementById('clientModalTitle').textContent=id?'顧問先編集':'顧問先登録'; const c=id?clientById(id):{};
-  CL_FIELDS.forEach(k=>setVal('cl_'+k,c[k])); setVal('cl_id',c.id||''); if(!c.type)setVal('cl_type','法人'); if(!c.status)setVal('cl_status','契約中'); if(!c.payMethod)setVal('cl_payMethod','紙納付書'); openModal('clientModal'); }
+  CL_FIELDS.forEach(k=>setVal('cl_'+k,c[k])); setVal('cl_id',c.id||''); if(!c.type)setVal('cl_type','法人'); if(!c.status)setVal('cl_status','契約中'); if(!c.payMethod)setVal('cl_payMethod','紙納付書'); if(!c.gensenStatus)setVal('cl_gensenStatus','毎月納付'); openModal('clientModal'); }
 function saveClient(){ if(!val('cl_name')){ toast('顧問先名を入力してください','err'); return; } const id=val('cl_id'); const o={}; CL_FIELDS.forEach(k=>o[k]=val('cl_'+k));
   if(id)Object.assign(clientById(id),o); else { o.id=uid(); data.clients.push(o); } persist(); refreshAll(); closeModal('clientModal'); toast('保存しました','ok'); }
 function deleteClient(id){ const c=clientById(id); if(!confirm(`「${c.name}」を削除しますか？\n関連する申告・資料・議事録も削除されます。`))return;
   data.clients=data.clients.filter(x=>x.id!==id);
   Object.keys(data.filings).forEach(k=>{ if(k.endsWith('__'+id))delete data.filings[k]; });
+  Object.values(data.modules||{}).forEach(m=>{ if(m&&m.data)Object.keys(m.data).forEach(k=>{ if(k.endsWith('__'+id))delete m.data[k]; }); });
+  ['monthly','special'].forEach(t=>{ const s=data.gensen&&data.gensen[t]; if(s)Object.keys(s).forEach(k=>{ if(k.endsWith('__'+id))delete s[k]; }); });
+  if(data.clientSummaries)delete data.clientSummaries[id];
   data.docLists=data.docLists.filter(x=>x.clientId!==id); data.minutes=data.minutes.filter(x=>x.clientId!==id);
   persist(); refreshAll(); toast('削除しました','ok'); }
-const CLIENT_COLS=[['顧問先コード','code'],['顧問先名','name'],['フリガナ','kana'],['区分','type'],['代表者名','rep'],['法人番号','corpno'],['郵便番号','zip'],['住所','addr'],['電話番号','tel'],['メールアドレス','email'],['決算月','fiscal'],['契約区分','contract'],['納付方法','payMethod'],['主担当者','staff'],['顧問料(月額)','fee'],['ステータス','status'],['備考','notes']];
+const CLIENT_COLS=[['顧問先コード','code'],['顧問先名','name'],['フリガナ','kana'],['区分','type'],['代表者名','rep'],['法人番号','corpno'],['郵便番号','zip'],['住所','addr'],['電話番号','tel'],['メールアドレス','email'],['決算月','fiscal'],['契約区分','contract'],['納付方法','payMethod'],['源泉税納付ステータス','gensenStatus'],['主担当者','staff'],['顧問料(月額)','fee'],['ステータス','status'],['備考','notes']];
 function exportClients(){ if(!data.clients.length){toast('出力する顧問先がありません','err');return;}
   const rows=data.clients.map(c=>{const o={};CLIENT_COLS.forEach(([h,k])=>o[h]=c[k]||'');return o;});
   const ws=XLSX.utils.json_to_sheet(rows,{header:CLIENT_COLS.map(c=>c[0])}); const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'顧問先一覧'); XLSX.writeFile(wb,`顧問先一覧_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
-function downloadClientTemplate(){ const ws=XLSX.utils.aoa_to_sheet([CLIENT_COLS.map(c=>c[0]),['001','株式会社サンプル','カブシキガイシャサンプル','法人','山田太郎','1234567890123','100-0001','東京都千代田区...','03-0000-0000','sample@example.com','3月','月次顧問','ダイレクト納付','佐藤','50000','契約中','']]);
+function downloadClientTemplate(){ const ws=XLSX.utils.aoa_to_sheet([CLIENT_COLS.map(c=>c[0]),['001','株式会社サンプル','カブシキガイシャサンプル','法人','山田太郎','1234567890123','100-0001','東京都千代田区...','03-0000-0000','sample@example.com','3月','月次顧問','ダイレクト納付','納期特例','佐藤','50000','契約中','']]);
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'顧問先インポート'); XLSX.writeFile(wb,'顧問先インポート用テンプレート.xlsx'); toast('テンプレートを出力しました','ok'); }
 function importClients(ev){ const f=ev.target.files[0]; if(!f)return; const r=new FileReader();
   r.onload=e=>{ try{ const wb=XLSX.read(e.target.result,{type:'array'}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); let n=0;
-    rows.forEach(row=>{ const o={id:uid()}; CLIENT_COLS.forEach(([h,k])=>o[k]=String(row[h]==null?'':row[h]).trim()); if(o.name){ if(!o.status)o.status='契約中'; if(!o.type)o.type='法人'; if(!o.payMethod)o.payMethod='紙納付書'; data.clients.push(o); n++; } });
+    rows.forEach(row=>{ const o={id:uid()}; CLIENT_COLS.forEach(([h,k])=>o[k]=String(row[h]==null?'':row[h]).trim()); if(o.name){ if(!o.status)o.status='契約中'; if(!o.type)o.type='法人'; if(!o.payMethod)o.payMethod='紙納付書'; if(!o.gensenStatus)o.gensenStatus='毎月納付'; data.clients.push(o); n++; } });
     persist(); refreshAll(); toast(`${n}件を取り込みました`,'ok'); }catch(err){ toast('読み込み失敗: '+err.message,'err'); } ev.target.value=''; };
   r.readAsArrayBuffer(f); }
 
@@ -489,18 +545,22 @@ function renderFilingDetail(){
 }
 function setFilingNote(cid,v){ ensureFiling(filingYear,cid).note=v; persist(); }
 /* セル編集 */
-let cellCtx=null;
-function editCell(e,cid,encName){ const step=decodeURIComponent(encName); cellCtx={cid,step}; const f=getFiling(filingYear,cid); const cur=(f.cells&&f.cells[step])||'';
-  const ed=document.getElementById('cellEditor'); const rect=e.target.getBoundingClientRect();
-  ed.style.left=(window.scrollX+rect.left)+'px'; ed.style.top=(window.scrollY+rect.top)+'px'; ed.value=cur; ed.style.display='block'; ed.focus(); if(ed.showPicker){ try{ed.showPicker();}catch(_){} } }
-function commitCell(){ if(!cellCtx)return; const {cid,step}=cellCtx; const f=ensureFiling(filingYear,cid); if(!f.cells)f.cells={}; const v=document.getElementById('cellEditor').value;
-  if(v)f.cells[step]=v; else delete f.cells[step]; document.getElementById('cellEditor').style.display='none'; cellCtx=null; persist(); renderFiling(); renderDashboard(); }
+let cellCommit=null;
+function openCellEditor(e,cur,commit){ cellCommit=commit; const ed=document.getElementById('cellEditor'); const rect=e.target.getBoundingClientRect();
+  ed.style.left=(window.scrollX+rect.left)+'px'; ed.style.top=(window.scrollY+rect.top)+'px'; ed.value=cur||''; ed.style.display='block'; ed.focus(); if(ed.showPicker){ try{ed.showPicker();}catch(_){} } }
+function commitCell(){ const ed=document.getElementById('cellEditor'); if(!cellCommit){ ed.style.display='none'; return; } const fn=cellCommit; cellCommit=null; ed.style.display='none'; fn(ed.value); }
+function editCell(e,cid,encName){ const step=decodeURIComponent(encName); const f=getFiling(filingYear,cid); const cur=(f.cells&&f.cells[step])||'';
+  openCellEditor(e,cur,v=>{ const ff=ensureFiling(filingYear,cid); if(!ff.cells)ff.cells={}; if(v)ff.cells[step]=v; else delete ff.cells[step]; persist(); renderFiling(); renderDashboard(); }); }
+function gotoFiling(M){ filingMonth=M; showPage('filing'); renderFiling(); }
 /* 工程編集 */
-function openSteps(){ document.getElementById('stepsModalTitle').textContent=`工程の編集（${filingMonth}月決算）`; const tb=document.getElementById('stepsBody'); tb.innerHTML=''; getSteps(filingMonth).forEach(s=>addStepRow(s)); openModal('stepsModal'); }
+let stepsCtx={type:'filing'};
+function openSteps(){ stepsCtx={type:'filing'}; document.getElementById('stepsModalTitle').textContent=`工程の編集（${filingMonth}月決算）`; const tb=document.getElementById('stepsBody'); tb.innerHTML=''; getSteps(filingMonth).forEach(s=>addStepRow(s)); openModal('stepsModal'); }
 function addStepRow(s={}){ const tb=document.getElementById('stepsBody'); const tr=document.createElement('tr');
   tr.innerHTML=`<td><input class="st_name" value="${esc(s.name||'')}"></td><td><input class="st_due" type="date" value="${esc(s.due||'')}"></td><td><button class="icon" onclick="this.closest('tr').remove()">🗑</button></td>`; tb.appendChild(tr); }
 function saveSteps(){ const steps=[...document.querySelectorAll('#stepsBody tr')].map(tr=>({name:tr.querySelector('.st_name').value.trim(),due:tr.querySelector('.st_due').value})).filter(s=>s.name);
-  if(!steps.length){ toast('工程を1つ以上設定してください','err'); return; } data.filingSteps[String(filingMonth)]=steps; persist(); closeModal('stepsModal'); renderFiling(); toast('工程を保存しました','ok'); }
+  if(!steps.length){ toast('工程を1つ以上設定してください','err'); return; }
+  if(stepsCtx.type==='module'){ getModuleStore(stepsCtx.key).steps=steps; persist(); closeModal('stepsModal'); renderModule(stepsCtx.key); toast('工程を保存しました','ok'); return; }
+  data.filingSteps[String(filingMonth)]=steps; persist(); closeModal('stepsModal'); renderFiling(); toast('工程を保存しました','ok'); }
 /* Excel出力（決算月） */
 function exportFilingMonth(){ const M=filingMonth; const cs=clientsByFiscal(M); const steps=getSteps(M);
   const head=['コード','顧問先名','主担当者','備考',...steps.map(s=>s.name+(s.due?`(${fmtMD(s.due)})`:'')),'確定法人税','確定地方法人税','確定消費税(国税)','中間対象','中間国税計','中間県民税','中間事業税','中間市税','中間消費税(1回)'];
@@ -600,6 +660,186 @@ function exportInterimMonth(){ const CY=interimYear, CM=interimMonth; const rows
   const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,`${CY}年${CM}月中間`);
   XLSX.writeFile(wb,`${CY}年${CM}月中間申告_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
 
+/* ===== 各種進捗管理モジュール（所得税・年末調整・法定調書・償却資産・その他） ===== */
+const MODULES=[
+  {key:'shotoku',label:'所得税管理',note:'個人の顧問先（区分=個人）を対象に表示します。',filter:c=>c.type==='個人',steps:['資料受取','所得税データ入力','申告書作成','申告書チェック','電子申告','納付確認']},
+  {key:'nencho',label:'年末調整管理',note:'契約中の全顧問先を対象に表示します。',filter:c=>true,steps:['扶養控除等申告書回収','保険料控除申告書回収','給与データ確認','年調計算','源泉徴収票作成','過不足精算']},
+  {key:'hotei',label:'法定調書管理',note:'契約中の全顧問先を対象に表示します（提出期限 1/31）。',filter:c=>true,steps:['支払データ確認','支払調書作成','法定調書合計表作成','税務署提出','給与支払報告書(市区町村)']},
+  {key:'shokyaku',label:'償却資産管理',note:'契約中の全顧問先を対象に表示します（申告期限 1/31）。',filter:c=>true,steps:['資産増減確認','申告書作成','申告書チェック','提出']},
+  {key:'sonota',label:'その他管理',note:'契約中の全顧問先を対象に表示します。工程は自由に編集できます。',filter:c=>true,steps:['依頼内容確認','対応中','レビュー','完了']},
+];
+function getModuleDef(key){ return MODULES.find(m=>m.key===key); }
+function getModuleYear(key){ return moduleYear[key]||(moduleYear[key]=new Date().getFullYear()); }
+function changeModuleYear(key,d){ moduleYear[key]=getModuleYear(key)+d; renderModule(key); }
+function getModuleStore(key){ if(!data.modules[key])data.modules[key]={steps:null,data:{}}; const m=data.modules[key]; if(!m.steps)m.steps=getModuleDef(key).steps.map(n=>({name:n,due:''})); if(!m.data)m.data={}; return m; }
+function moduleRow(key,year,cid){ const m=getModuleStore(key); const k=year+'__'+cid; if(!m.data[k])m.data[k]={cells:{},note:''}; return m.data[k]; }
+function moduleClients(key){ const def=getModuleDef(key); return activeClients().filter(def.filter); }
+function openModuleSteps(key){ stepsCtx={type:'module',key}; document.getElementById('stepsModalTitle').textContent=`工程の編集（${getModuleDef(key).label}）`; const tb=document.getElementById('stepsBody'); tb.innerHTML=''; getModuleStore(key).steps.forEach(s=>addStepRow(s)); openModal('stepsModal'); }
+function editModuleCell(e,key,cid,encName){ const step=decodeURIComponent(encName); const year=getModuleYear(key); const r=moduleRow(key,year,cid); const cur=(r.cells&&r.cells[step])||'';
+  openCellEditor(e,cur,v=>{ const rr=moduleRow(key,year,cid); if(!rr.cells)rr.cells={}; if(v)rr.cells[step]=v; else delete rr.cells[step]; persist(); renderModule(key); }); }
+function setModuleNote(key,cid,v){ moduleRow(key,getModuleYear(key),cid).note=v; persist(); }
+function renderModule(key){
+  const def=getModuleDef(key); const year=getModuleYear(key); const store=getModuleStore(key); const steps=store.steps; const cs=moduleClients(key); const today=new Date(); today.setHours(0,0,0,0);
+  let html=`<div class="page-head"><h2>${def.label}</h2>
+    <div class="year-nav"><button class="icon" onclick="changeModuleYear('${key}',-1)">◀</button><b>${year}年（${wareki(year)}）</b><button class="icon" onclick="changeModuleYear('${key}',1)">▶</button></div>
+    <div class="toolbar"><button onclick="openModuleSteps('${key}')">⚙ 工程を編集</button><button onclick="exportModule('${key}')">📤 Excel出力</button></div></div>
+    <div class="hint" style="margin-bottom:14px">${esc(def.note)}</div>`;
+  if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>対象の顧問先がありません。</div></div>`; document.getElementById(key+'View').innerHTML=html; return; }
+  let head=`<tr><th class="name">顧問先</th><th>主担当者</th><th>備考</th>`+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`</tr>`;
+  let body=cs.map(c=>{ const r=moduleRow(key,year,c.id);
+    let row=`<td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td><td>${esc(c.staff||'')}</td><td><input style="min-width:90px;padding:5px 7px" value="${esc(r.note||'')}" onchange="setModuleNote('${key}','${c.id}',this.value)"></td>`;
+    row+=steps.map(s=>{ const v=r.cells&&r.cells[s.name]; let cls='todo',txt='－'; if(v){ cls='done'; txt=fmtMD(v); } else if(s.due){ cls=(new Date(s.due)<today)?'over':'todo'; txt='未('+fmtMD(s.due)+')'; }
+      return `<td><span class="cell ${cls}" onclick="editModuleCell(event,'${key}','${c.id}','${encodeURIComponent(s.name)}')">${txt}</span></td>`; }).join('');
+    return `<tr>${row}</tr>`; }).join('');
+  html+=`<div class="grid-wrap"><table class="grid"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+    <div class="hint" style="margin-top:12px">※ セルをクリックで完了日を入力できます。</div>`;
+  document.getElementById(key+'View').innerHTML=html;
+}
+function exportModule(key){ const def=getModuleDef(key); const year=getModuleYear(key); const steps=getModuleStore(key).steps; const cs=moduleClients(key);
+  const head=['コード','顧問先名','主担当者','備考',...steps.map(s=>s.name+(s.due?`(${fmtMD(s.due)})`:''))]; const aoa=[head];
+  cs.forEach(c=>{ const r=moduleRow(key,year,c.id); aoa.push([c.code||'',c.name,c.staff||'',r.note||'',...steps.map(s=>(r.cells&&r.cells[s.name])?fmtMD(r.cells[s.name]):'')]); });
+  const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,def.label);
+  XLSX.writeFile(wb,`${def.label}_${year}年_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
+
+/* ===== 源泉税管理（毎月納付 / 納期特例） ===== */
+const GENSEN_MONTHS=[...Array(12)].map((_,i)=>(i+1)); // 1..12月分
+function changeGensenYear(d){ gensenYear+=d; renderGensen(); }
+function setGensenTab(t){ gensenTab=t; renderGensen(); }
+function gensenRow(kind,cid){ const store=data.gensen[kind]; const k=gensenYear+'__'+cid; if(!store[k])store[k]={}; return store[k]; }
+function editGensenCell(e,kind,cid,field){ const r=gensenRow(kind,cid); const cur=r[field]||'';
+  openCellEditor(e,cur,v=>{ const rr=gensenRow(kind,cid); if(v)rr[field]=v; else delete rr[field]; persist(); renderGensen(); }); }
+function renderGensen(){
+  let html=`<div class="page-head"><h2>源泉税管理</h2>
+    <div class="year-nav"><button class="icon" onclick="changeGensenYear(-1)">◀</button><b>${gensenYear}年（${wareki(gensenYear)}）</b><button class="icon" onclick="changeGensenYear(1)">▶</button></div>
+    <div class="toolbar"><button onclick="exportGensen()">📤 Excel出力</button></div></div>
+    <div class="sub-tabs"><button class="${gensenTab==='monthly'?'on':''}" onclick="setGensenTab('monthly')">毎月納付</button><button class="${gensenTab==='special'?'on':''}" onclick="setGensenTab('special')">納期特例（納特）</button></div>`;
+  const cs=activeClients().filter(c=>(gensenTab==='monthly')?(c.gensenStatus!=='納期特例'):(c.gensenStatus==='納期特例'));
+  if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>${gensenTab==='monthly'?'毎月納付':'納期特例'}の対象顧問先がありません。顧問先情報の「源泉税納付ステータス」をご確認ください。</div></div>`; document.getElementById('gensenView').innerHTML=html; return; }
+  if(gensenTab==='monthly'){
+    let head=`<tr><th class="name">顧問先</th>`+GENSEN_MONTHS.map(m=>`<th class="step">${m}月分<span class="due">〜${m===12?'翌1':m+1}/10</span></th>`).join('')+`</tr>`;
+    let body=cs.map(c=>{ const r=gensenRow('monthly',c.id);
+      let row=`<td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td>`+GENSEN_MONTHS.map(m=>{ const v=r['m'+m]; const cls=v?'done':'todo'; const txt=v?fmtMD(v):'未';
+        return `<td><span class="cell ${cls}" onclick="editGensenCell(event,'monthly','${c.id}','m${m}')">${txt}</span></td>`; }).join('');
+      return `<tr>${row}</tr>`; }).join('');
+    html+=`<div class="grid-wrap"><table class="grid"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+      <div class="hint" style="margin-top:12px">※ 各月分の源泉所得税は翌月10日が納付期限です。セルに納付日を入力できます。</div>`;
+  } else {
+    let head=`<tr><th class="name">顧問先</th><th class="step">1〜6月分<span class="due">〜7/10</span></th><th class="step">7〜12月分<span class="due">〜翌1/20</span></th></tr>`;
+    let body=cs.map(c=>{ const r=gensenRow('special',c.id);
+      const cell=(f)=>{ const v=r[f]; const cls=v?'done':'todo'; const txt=v?fmtMD(v):'未'; return `<td><span class="cell ${cls}" onclick="editGensenCell(event,'special','${c.id}','${f}')">${txt}</span></td>`; };
+      return `<tr><td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td>${cell('h1')}${cell('h2')}</tr>`; }).join('');
+    html+=`<div class="grid-wrap"><table class="grid"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+      <div class="hint" style="margin-top:12px">※ 納期特例：1〜6月分は7/10、7〜12月分は翌年1/20が納付期限です。</div>`;
+  }
+  document.getElementById('gensenView').innerHTML=html;
+}
+function exportGensen(){ const cs=activeClients().filter(c=>(gensenTab==='monthly')?(c.gensenStatus!=='納期特例'):(c.gensenStatus==='納期特例'));
+  let head,aoa;
+  if(gensenTab==='monthly'){ head=['コード','顧問先名',...GENSEN_MONTHS.map(m=>m+'月分')]; aoa=[head];
+    cs.forEach(c=>{ const r=gensenRow('monthly',c.id); aoa.push([c.code||'',c.name,...GENSEN_MONTHS.map(m=>r['m'+m]?fmtMD(r['m'+m]):'')]); }); }
+  else { head=['コード','顧問先名','1〜6月分(7/10)','7〜12月分(翌1/20)']; aoa=[head];
+    cs.forEach(c=>{ const r=gensenRow('special',c.id); aoa.push([c.code||'',c.name,r.h1?fmtMD(r.h1):'',r.h2?fmtMD(r.h2):'']); }); }
+  const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,gensenTab==='monthly'?'源泉税(毎月納付)':'源泉税(納特)');
+  XLSX.writeFile(wb,`源泉税管理_${gensenYear}年_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
+
+/* ===== 分析 ===== */
+function setAnalysisMetric(m){ analysisMetric=m; renderAnalysis(); }
+function barChart(rows,fmt){ const max=Math.max(1,...rows.map(r=>r.v));
+  return rows.map(r=>`<div class="bar-row"><span class="lbl">${esc(r.l)}</span><span class="bar" style="width:${Math.round(r.v/max*240)}px"></span><span class="val">${fmt?fmt(r.v):r.v}</span></div>`).join('')||'<div class="muted">データなし</div>'; }
+function renderAnalysis(){
+  const cs=data.clients; const active=cs.filter(c=>c.status==='契約中');
+  // 決算月別
+  const byFiscal=MONTHS.map(m=>({l:m,v:active.filter(c=>c.fiscal===m).length}));
+  // 区分別
+  const byType=['法人','個人'].map(t=>({l:t,v:active.filter(c=>(c.type||'法人')===t).length}));
+  // ステータス別（全件）
+  const byStatus=['契約中','休止','解約'].map(s=>({l:s,v:cs.filter(c=>(c.status||'契約中')===s).length}));
+  // 担当者別
+  const staffMap={}; active.forEach(c=>{ const s=c.staff||'(未設定)'; staffMap[s]=(staffMap[s]||0)+1; });
+  const byStaff=Object.entries(staffMap).map(([l,v])=>({l,v})).sort((a,b)=>b.v-a.v);
+  // 顧問料
+  const fees=active.map(c=>num(c.fee)); const totalFee=fees.reduce((a,b)=>a+b,0); const avgFee=fees.length?Math.round(totalFee/fees.length):0;
+  const feeByStaff={}; active.forEach(c=>{ const s=c.staff||'(未設定)'; feeByStaff[s]=(feeByStaff[s]||0)+num(c.fee); });
+  const byStaffFee=Object.entries(feeByStaff).map(([l,v])=>({l,v})).sort((a,b)=>b.v-a.v);
+  // 納付方法別
+  const byPay=['ダイレクト納付','紙納付書'].map(p=>({l:p,v:active.filter(c=>c.payMethod===p).length}));
+  let html=`<div class="page-head"><h2>分析</h2></div>
+    <div class="stat-row">
+      <div class="stat"><div class="n">${active.length}</div><div class="l">契約中の顧問先</div></div>
+      <div class="stat"><div class="n">${totalFee.toLocaleString('ja-JP')}</div><div class="l">月額顧問料 合計(円)</div></div>
+      <div class="stat"><div class="n">${avgFee.toLocaleString('ja-JP')}</div><div class="l">月額顧問料 平均(円)</div></div>
+      <div class="stat"><div class="n">${(totalFee*12).toLocaleString('ja-JP')}</div><div class="l">年間顧問料 換算(円)</div></div>
+    </div>
+    <div class="analysis-grid">
+      <div class="card pad"><h3 style="margin:0 0 14px;font-weight:500">決算月別の顧問先数</h3>${barChart(byFiscal)}</div>
+      <div class="card pad"><h3 style="margin:0 0 14px;font-weight:500">担当者別の顧問先数</h3>${barChart(byStaff)}</div>
+      <div class="card pad"><h3 style="margin:0 0 14px;font-weight:500">担当者別の月額顧問料</h3>${barChart(byStaffFee,v=>v.toLocaleString('ja-JP')+'円')}</div>
+      <div class="card pad"><h3 style="margin:0 0 14px;font-weight:500">区分別</h3>${barChart(byType)}</div>
+      <div class="card pad"><h3 style="margin:0 0 14px;font-weight:500">契約ステータス別</h3>${barChart(byStatus)}</div>
+      <div class="card pad"><h3 style="margin:0 0 14px;font-weight:500">納付方法別</h3>${barChart(byPay)}</div>
+    </div>`;
+  document.getElementById('analysisView').innerHTML=html;
+}
+
+/* ===== AI（Claude API ブラウザ直接呼び出し） ===== */
+async function callClaude(system,user,maxTokens){
+  const key=(data.settings.claudeApiKey||'').trim();
+  if(!key) throw new Error('設定でClaude APIキーを登録してください');
+  const model=data.settings.claudeModel||'claude-opus-4-8';
+  const res=await fetch('https://api.anthropic.com/v1/messages',{ method:'POST',
+    headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({ model, max_tokens:maxTokens||1500, system, messages:[{role:'user',content:user}] }) });
+  if(!res.ok){ let msg=res.status+''; try{ const j=await res.json(); msg=(j.error&&j.error.message)||msg; }catch(_){ } throw new Error('AI呼び出し失敗: '+msg); }
+  const j=await res.json();
+  return (j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
+}
+async function aiPolishMinute(){
+  const content=val('mn_content'); const hint=document.getElementById('mn_aiHint');
+  if(!content){ toast('内容を入力してください','err'); return; }
+  hint.textContent='AIが校正しています…';
+  try{
+    const out=await callClaude(
+      'あなたは税理士事務所のアシスタントです。会議の議事メモを、要点が明確で読みやすい議事録に整えます。事実は変えず、内容を簡潔な箇条書きと短い段落でまとめ、決定事項や次のアクションがあれば明記してください。出力は日本語の本文のみ。',
+      '次の議事メモを読みやすい議事録に校正してください。\n\n'+content, 1800);
+    setVal('mn_content',out); hint.textContent='AIで校正しました。必要に応じて修正のうえ保存してください。'; toast('AI校正が完了しました','ok');
+  }catch(e){ hint.textContent=''; toast(e.message,'err'); }
+}
+
+/* ===== 議事録まとめ（顧問先・事業年度別） ===== */
+function fiscalYearLabel(c,dateStr){ const M=fiscalMonthNum(c.fiscal); const d=new Date(dateStr); if(isNaN(d))return '日付不明';
+  if(!M) return d.getFullYear()+'年（暦年）';
+  const y=(d.getMonth()+1)<=M?d.getFullYear():d.getFullYear()+1; return y+'年'+M+'月期'; }
+function groupMinutesByFY(cid){ const c=clientById(cid); const list=data.minutes.filter(m=>m.clientId===cid); const g={};
+  list.forEach(m=>{ const k=fiscalYearLabel(c,m.date); (g[k]=g[k]||[]).push(m); });
+  Object.values(g).forEach(arr=>arr.sort((a,b)=>(a.date||'').localeCompare(b.date||'')));
+  return g; }
+function openSummary(cid){ const c=clientById(cid); setVal('sm_cid',cid); document.getElementById('summaryModalTitle').textContent=`議事録まとめ　${c.name}`; renderSummaryBody(cid); openModal('summaryModal'); }
+function renderSummaryBody(cid){
+  const g=groupMinutesByFY(cid); const keys=Object.keys(g).sort().reverse(); const store=data.clientSummaries[cid]||{};
+  const el=document.getElementById('summaryBody');
+  if(!keys.length){ el.innerHTML='<div class="empty">この顧問先の議事録がありません。</div>'; return; }
+  el.innerHTML=keys.map(k=>{ const arr=g[k]; const sum=store[k];
+    return `<div class="card pad" style="margin-bottom:14px">
+      <div class="row-flex" style="justify-content:space-between"><b>${esc(k)}</b>
+        <button class="ai-btn" onclick="aiSummarizeFY('${cid}','${encodeURIComponent(k)}')">🪄 AIでまとめる</button></div>
+      <div class="muted" style="font-size:12px;margin:6px 0">議事録 ${arr.length}件：${esc(arr.map(m=>m.title).join(' / '))}</div>
+      <div id="sum_${btoa(unescape(encodeURIComponent(k))).replace(/=/g,'')}">${sum?`<div class="ai-box">${esc(sum.text)}</div><div class="muted" style="font-size:11px;margin-top:6px">生成: ${esc(sum.at||'')}</div>`:'<div class="muted" style="font-size:13px">まだまとめがありません。「AIでまとめる」を押してください。</div>'}</div>
+    </div>`; }).join('');
+}
+async function aiSummarizeFY(cid,encKey){
+  const key=decodeURIComponent(encKey); const c=clientById(cid); const g=groupMinutesByFY(cid); const arr=g[key]||[];
+  const boxId='sum_'+btoa(unescape(encodeURIComponent(key))).replace(/=/g,''); const box=document.getElementById(boxId);
+  if(box)box.innerHTML='<div class="muted" style="font-size:13px">AIがまとめています…</div>';
+  try{
+    const body=arr.map(m=>`【${m.date} ${m.title}】\n出席者: ${m.attendees||''}\n内容:\n${m.content||''}\n決定事項・next action:\n${m.actions||''}`).join('\n\n----\n\n');
+    const out=await callClaude(
+      'あなたは経験豊富な税理士です。顧問先の当事業年度の議事録一覧を読み、決算・申告時に確認すべき観点でまとめます。重要な決定事項、会計・税務に影響する事項（設備投資、役員報酬、借入、特別損益、税制特例の適用など）、継続検討事項・宿題を、漏れなく簡潔な箇条書きで整理してください。決算時のチェックに使える実用的なまとめにし、日本語の本文のみを出力してください。',
+      `顧問先「${c.name}」の${key}の議事録です。決算時に踏まえるべき内容をまとめてください。\n\n${body}`, 2000);
+    if(!data.clientSummaries[cid])data.clientSummaries[cid]={};
+    data.clientSummaries[cid][key]={text:out,at:todayISO()}; persist(); renderSummaryBody(cid); toast('まとめを生成しました','ok');
+  }catch(e){ if(box)box.innerHTML=''; renderSummaryBody(cid); toast(e.message,'err'); }
+}
+
 /* ===== 資料回収 ===== */
 function renderDocs(){ const fc=document.getElementById('docFilterClient').value; let list=data.docLists.slice(); if(fc)list=list.filter(d=>d.clientId===fc);
   const el=document.getElementById('docCards');
@@ -648,14 +888,14 @@ function exportMinutes(){ if(!data.minutes.length){ toast('出力する議事録
 /* ===== 設定/バックアップ ===== */
 function todayStr(){ const d=new Date(); return d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2); }
 function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
-function saveSettings(){ data.settings.folderUrl=val('setFolderUrl'); data.settings.clientId=val('setClientId'); persist(false); toast('設定を保存しました','ok'); }
+function saveSettings(){ data.settings.folderUrl=val('setFolderUrl'); data.settings.clientId=val('setClientId'); data.settings.claudeApiKey=val('setClaudeKey'); data.settings.claudeModel=val('setClaudeModel')||'claude-opus-4-8'; persist(false); toast('設定を保存しました','ok'); }
 function openDriveFolder(){ const url=val('setFolderUrl')||data.settings.folderUrl; if(!url){ toast('フォルダURLを入力してください','err'); return; } window.open(url,'_blank'); }
 function exportBackup(){ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='komon-manager-data.json'; a.click(); URL.revokeObjectURL(a.href); toast('データを書き出しました','ok'); }
 function importBackup(ev){ const f=ev.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=e=>{ try{ applyImportedData(JSON.parse(e.target.result)); toast('データを取り込みました','ok'); }catch(err){ toast('読み込み失敗: '+err.message,'err'); } ev.target.value=''; }; r.readAsText(f); }
-function applyImportedData(d){ data.clients=d.clients||[]; data.filings=d.filings||{}; data.filingSteps=d.filingSteps||{}; data.interimDone=d.interimDone||{}; data.docLists=d.docLists||[]; data.minutes=d.minutes||[];
-  if(d.settings){ data.settings.folderUrl=d.settings.folderUrl||data.settings.folderUrl; data.settings.clientId=d.settings.clientId||data.settings.clientId; }
+function applyImportedData(d){ data.clients=d.clients||[]; data.filings=d.filings||{}; data.filingSteps=d.filingSteps||{}; data.interimDone=d.interimDone||{}; data.modules=d.modules||{}; data.gensen=d.gensen||{monthly:{},special:{}}; data.clientSummaries=d.clientSummaries||{}; data.docLists=d.docLists||[]; data.minutes=d.minutes||[];
+  if(d.settings){ data.settings.folderUrl=d.settings.folderUrl||data.settings.folderUrl; data.settings.clientId=d.settings.clientId||data.settings.clientId; data.settings.claudeApiKey=d.settings.claudeApiKey||data.settings.claudeApiKey; data.settings.claudeModel=d.settings.claudeModel||data.settings.claudeModel; }
   filingMonth=null; interimMonth=null; persist(false); restoreSettingsUI(); refreshAll(); }
-function restoreSettingsUI(){ setVal('setFolderUrl',data.settings.folderUrl); setVal('setClientId',data.settings.clientId); }
+function restoreSettingsUI(){ setVal('setFolderUrl',data.settings.folderUrl); setVal('setClientId',data.settings.clientId); setVal('setClaudeKey',data.settings.claudeApiKey||''); setVal('setClaudeModel',data.settings.claudeModel||'claude-opus-4-8'); }
 
 /* ===== Google Drive 同期 ===== */
 const DriveSync=(function(){
