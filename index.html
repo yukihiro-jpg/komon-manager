@@ -388,6 +388,7 @@ function setVal(id,v){ document.getElementById(id).value=v==null?'':v; }
 function num(v){ const n=Number(v); return isNaN(n)?0:n; }
 function numC(v){ return num(String(v==null?'':v).replace(/,/g,'')); }                 // カンマ付き数値を解釈
 function fmtAmt(n){ n=num(n); return n?n.toLocaleString('ja-JP'):''; }                  // #,### 表示
+function fmtAmtSigned(n){ n=num(n); if(n===0)return '0'; return n<0?'△'+Math.abs(n).toLocaleString('ja-JP'):n.toLocaleString('ja-JP'); } // マイナスは△表記
 function setAmt(id,n){ const el=document.getElementById(id); if(el)el.value=fmtAmt(n); }   // 金額入力欄へ整形セット
 function amtInput(value,onchange,extra){ return `<input type="text" inputmode="numeric" class="amt" style="min-width:88px;padding:5px 7px;${extra||''}" value="${fmtAmt(value)}" onchange="${onchange}">`; }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -800,7 +801,8 @@ function gensenMonthlyClients(){ return activeClients().filter(c=>c.gensenStatus
 function gensenSpecialClients(){ return activeClients().filter(c=>c.gensenStatus==='納期特例'); }
 function gensenDueLabel(m){ return `${m}月分（${m+1}月10日納付分）`; }   // m=1..11
 function payChip(c){ return c.payMethod?`<span class="chip ${c.payMethod==='ダイレクト納付'?'blue':'gray'}">${esc(c.payMethod)}</span>`:'－'; }
-function nenchoDeduction(year,cid){ return num(nPeek(year-1,cid).deduction); }  // 前年の年末調整 控除未済額
+function nenchoDeductionOf(year,cid){ const r=nPeek(year,cid); return num(r.genzei)+num(r.shortfall)-num(r.refund); } // 控除未済額＝当月源泉税額＋不足額−還付額
+function nenchoDeduction(year,cid){ return nenchoDeductionOf(year-1,cid); }  // 前年の年末調整 控除未済額
 function gensenYearNav(){ return `<div class="year-nav"><button class="icon" onclick="changeGensenYear(-1)">◀</button><b>${gensenYear}年（${wareki(gensenYear)}）</b><button class="icon" onclick="changeGensenYear(1)">▶</button></div>`; }
 function gensenTabs(){ return `<div class="sub-tabs"><button class="${gensenTab==='monthly'?'on':''}" onclick="setGensenTab('monthly')">毎月納付</button><button class="${gensenTab==='special'?'on':''}" onclick="setGensenTab('special')">納期特例</button></div>`; }
 /* 毎月納付 */
@@ -893,25 +895,27 @@ function renderNencho(){
     <div class="toolbar"><button onclick="exportNencho()">📤 Excel出力</button></div></div>
     <div class="hint" style="margin-bottom:14px">契約中の顧問先を対象に年末調整を管理します。各種申告書回収・給与登録・年調確定・源泉徴収票等送付はセルクリックで日付（または対象外）を入力。納付方法は顧問先情報から表示。ヘッダの▾で絞り込みできます。</div>`;
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>契約中の顧問先がありません。</div></div>`; document.getElementById('nenchoView').innerHTML=html; return; }
-  let head=`<tr><th class="name">顧問先</th><th>主担当者</th><th>納付方法</th><th>備考</th><th>各種申告書回収</th><th>給与登録</th><th>年調確定</th><th>源泉徴収票等送付</th><th style="text-align:right">当月源泉税額</th><th style="text-align:right">年末調整不足額</th><th style="text-align:right">年末調整還付額</th><th style="text-align:right">控除未済額</th></tr>`;
+  let head=`<tr><th class="name">顧問先</th><th>区分</th><th>納付方法</th><th>備考</th><th>各種申告書回収</th><th>給与登録</th><th>年調確定</th><th>源泉徴収票等送付</th><th style="text-align:right">当月源泉税額</th><th style="text-align:right">年末調整不足額</th><th style="text-align:right">年末調整還付額</th><th style="text-align:right">控除未済額</th></tr>`;
   let body=cs.map(c=>{ const r=nPeek(nenchoYear,c.id);
     const dcell=(f)=>{ const v=r[f]; let cls,txt; if(v==='対象外'){cls='na';txt='対象外';} else if(v){cls='done';txt=fmtMD(v);} else {cls='todo';txt='未';} return `<td><span class="cell ${cls}" onclick="editNenchoCell(event,'${c.id}','${f}')">${txt}</span></td>`; };
+    const ded=nenchoDeductionOf(nenchoYear,c.id);
     return `<tr><td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td>
-      <td>${esc(c.staff||'')}</td><td>${payChip(c)}</td>
+      <td>${c.gensenStatus?`<span class="chip ${c.gensenStatus==='納期特例'?'amber':'gray'}">${esc(c.gensenStatus)}</span>`:''}</td><td>${payChip(c)}</td>
       <td><input style="min-width:110px;padding:5px 7px" value="${esc(r.note||'')}" onchange="setNenchoField('${c.id}','note',this.value)"></td>
       ${dcell('collect')}${dcell('payroll')}${dcell('confirm')}${dcell('send')}
       <td style="text-align:right">${amtInput(r.genzei,`setNenchoAmt('${c.id}','genzei',this.value)`)}</td>
       <td style="text-align:right">${amtInput(r.shortfall,`setNenchoAmt('${c.id}','shortfall',this.value)`)}</td>
-      <td style="text-align:right">${amtInput(r.refund,`setNenchoAmt('${c.id}','refund',this.value)`)}</td>
-      <td style="text-align:right">${amtInput(r.deduction,`setNenchoAmt('${c.id}','deduction',this.value)`)}</td></tr>`; }).join('');
-  html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+      <td style="text-align:right;white-space:nowrap"><span style="color:var(--danger);margin-right:2px">△</span>${amtInput(r.refund,`setNenchoAmt('${c.id}','refund',this.value)`,'min-width:74px')}</td>
+      <td class="yen" style="text-align:right;font-weight:600">${fmtAmtSigned(ded)}</td></tr>`; }).join('');
+  html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+    <div class="hint" style="margin-top:12px">※ 当月源泉税額・年末調整不足額・年末調整還付額は正の金額で入力します（還付額は△表示で減算）。控除未済額＝当月源泉税額＋年末調整不足額−年末調整還付額で自動計算し、源泉税管理（毎月納付の翌年1月分／納期特例の1〜6月分）の未済繰越額に連携します。</div>`;
   document.getElementById('nenchoView').innerHTML=html;
   enhanceGrid(document.querySelector('#nenchoView table.grid'),'nencho');
 }
 function exportNencho(){ const cs=activeClients();
-  const head=['コード','顧問先','主担当者','納付方法','備考','各種申告書回収','給与登録','年調確定','源泉徴収票等送付','当月源泉税額','年末調整不足額','年末調整還付額','控除未済額'];
+  const head=['コード','顧問先','区分','納付方法','備考','各種申告書回収','給与登録','年調確定','源泉徴収票等送付','当月源泉税額','年末調整不足額','年末調整還付額','控除未済額'];
   const aoa=[head]; cs.forEach(c=>{ const r=nPeek(nenchoYear,c.id); const dv=f=>r[f]==='対象外'?'対象外':(r[f]?fmtMD(r[f]):'');
-    aoa.push([c.code||'',c.name,c.staff||'',c.payMethod||'',r.note||'',dv('collect'),dv('payroll'),dv('confirm'),dv('send'),num(r.genzei)||'',num(r.shortfall)||'',num(r.refund)||'',num(r.deduction)||'']); });
+    aoa.push([c.code||'',c.name,c.gensenStatus||'',c.payMethod||'',r.note||'',dv('collect'),dv('payroll'),dv('confirm'),dv('send'),num(r.genzei)||'',num(r.shortfall)||'',num(r.refund)||'',nenchoDeductionOf(nenchoYear,c.id)||'']); });
   const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'年末調整'); XLSX.writeFile(wb,`年末調整管理_${nenchoYear}年_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
 
 /* ===== 分析 ===== */
