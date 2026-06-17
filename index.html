@@ -221,11 +221,16 @@
         <button onclick="openDriveFolder()">📂 フォルダを開く</button>
         <button onclick="DriveSync.loadFromDrive(true)">📥 取り込む</button></div>
       <h3 style="font-weight:500">AI（議事録の校正・まとめ）</h3>
-      <div class="field full" style="margin-bottom:14px"><label>Claude APIキー</label>
-        <input id="setClaudeKey" type="password" placeholder="sk-ant-...">
-        <span class="hint">議事録のAI校正・事業年度まとめに使用します。<a class="link" href="https://console.anthropic.com/" target="_blank">Anthropic Console</a>で取得。キーはこの端末内にのみ保存されます。</span></div>
+      <div class="field full" style="margin-bottom:14px"><label>AIプロバイダー</label>
+        <select id="setAiProvider" onchange="onProviderChange()">
+          <option value="gemini">Gemini（Google・無料枠あり）</option>
+          <option value="claude">Claude（Anthropic）</option>
+        </select></div>
+      <div class="field full" style="margin-bottom:14px"><label id="aiKeyLabel">APIキー</label>
+        <input id="setAiKey" type="password" placeholder="">
+        <span class="hint" id="aiKeyHint"></span></div>
       <div class="field full" style="margin-bottom:14px"><label>モデル</label>
-        <select id="setClaudeModel"><option value="claude-opus-4-8">Claude Opus 4.8（高品質）</option><option value="claude-sonnet-4-6">Claude Sonnet 4.6（標準）</option><option value="claude-haiku-4-5">Claude Haiku 4.5（高速・低コスト）</option></select></div>
+        <select id="setAiModel"></select></div>
       <div class="row-flex" style="margin-bottom:24px"><button class="primary" onclick="saveSettings()">💾 設定を保存</button></div>
 
       <h3 style="font-weight:500">手動バックアップ</h3>
@@ -358,7 +363,8 @@
 <script>
 /* ===== データ ===== */
 const LS_KEY='komonManagerData_v3';
-let data={ clients:[], filings:{}, filingSteps:{}, interimDone:{}, modules:{}, gensen:{monthly:{},special:{}}, clientSummaries:{}, docLists:[], minutes:[], settings:{folderUrl:'',clientId:'',claudeApiKey:'',claudeModel:'claude-opus-4-8'} };
+const AI_DEFAULTS={folderUrl:'',clientId:'',aiProvider:'gemini',claudeApiKey:'',claudeModel:'claude-opus-4-8',geminiApiKey:'',geminiModel:'gemini-2.5-flash'};
+let data={ clients:[], filings:{}, filingSteps:{}, interimDone:{}, modules:{}, gensen:{monthly:{},special:{}}, clientSummaries:{}, docLists:[], minutes:[], settings:Object.assign({},AI_DEFAULTS) };
 let filingYear=new Date().getFullYear(), filingMonth=null;     // 確定申告管理：決算年・選択中の決算月
 let interimYear=new Date().getFullYear(), interimMonth=null;   // 中間申告管理：暦年・選択中の月
 let moduleYear={};                                              // 各管理モジュールの対象年
@@ -378,7 +384,7 @@ const MONTHS=[...Array(12)].map((_,i)=>(i+1)+'月');
 function wareki(y){ if(y>=2019)return '令和'+(y-2018)+'年'; if(y>=1989)return '平成'+(y-1988)+'年'; return y+'年'; }
 const DEFAULT_STEPS=['資料受取','会計入力','申告書作成','申告書チェック_1回目','申告書チェック_2回目','申告書セット','押印・納付書','申告','返却用セット','返却'];
 
-function loadLocal(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const d=JSON.parse(raw); data=Object.assign(data,d); data.settings=Object.assign({folderUrl:'',clientId:'',claudeApiKey:'',claudeModel:'claude-opus-4-8'},d.settings||{}); ['filings','filingSteps','interimDone','modules','clientSummaries'].forEach(k=>{ if(!data[k])data[k]={}; }); if(!data.gensen)data.gensen={monthly:{},special:{}}; } }catch(e){console.warn(e);} }
+function loadLocal(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const d=JSON.parse(raw); data=Object.assign(data,d); data.settings=Object.assign({},AI_DEFAULTS,d.settings||{}); ['filings','filingSteps','interimDone','modules','clientSummaries'].forEach(k=>{ if(!data[k])data[k]={}; }); if(!data.gensen)data.gensen={monthly:{},special:{}}; } }catch(e){console.warn(e);} }
 let saveTimer=null;
 function persist(sync=true){ localStorage.setItem(LS_KEY,JSON.stringify(data)); if(sync){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>DriveSync.saveToDrive(),1500); } }
 function refreshAll(){ renderDashboard(); renderClients(); renderFiling(); renderInterim(); renderDocs(); renderMinutes(); populateClientSelects();
@@ -782,7 +788,20 @@ function renderAnalysis(){
 }
 
 /* ===== AI（Claude API ブラウザ直接呼び出し） ===== */
-async function callClaude(system,user,maxTokens){
+async function callAI(system,user,maxTokens){
+  const provider=data.settings.aiProvider||'gemini';
+  if(provider==='gemini'){
+    const key=(data.settings.geminiApiKey||'').trim();
+    if(!key) throw new Error('設定でGemini APIキーを登録してください');
+    const model=data.settings.geminiModel||'gemini-2.5-flash';
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,{ method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({ systemInstruction:{parts:[{text:system}]}, contents:[{role:'user',parts:[{text:user}]}], generationConfig:{maxOutputTokens:maxTokens||1500} }) });
+    if(!res.ok){ let msg=res.status+''; try{ const j=await res.json(); msg=(j.error&&j.error.message)||msg; }catch(_){ } throw new Error('AI呼び出し失敗: '+msg); }
+    const j=await res.json();
+    const cand=j.candidates&&j.candidates[0];
+    return (((cand&&cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('')||'').trim();
+  }
   const key=(data.settings.claudeApiKey||'').trim();
   if(!key) throw new Error('設定でClaude APIキーを登録してください');
   const model=data.settings.claudeModel||'claude-opus-4-8';
@@ -798,7 +817,7 @@ async function aiPolishMinute(){
   if(!content){ toast('内容を入力してください','err'); return; }
   hint.textContent='AIが校正しています…';
   try{
-    const out=await callClaude(
+    const out=await callAI(
       'あなたは税理士事務所のアシスタントです。会議の議事メモを、要点が明確で読みやすい議事録に整えます。事実は変えず、内容を簡潔な箇条書きと短い段落でまとめ、決定事項や次のアクションがあれば明記してください。出力は日本語の本文のみ。',
       '次の議事メモを読みやすい議事録に校正してください。\n\n'+content, 1800);
     setVal('mn_content',out); hint.textContent='AIで校正しました。必要に応じて修正のうえ保存してください。'; toast('AI校正が完了しました','ok');
@@ -832,7 +851,7 @@ async function aiSummarizeFY(cid,encKey){
   if(box)box.innerHTML='<div class="muted" style="font-size:13px">AIがまとめています…</div>';
   try{
     const body=arr.map(m=>`【${m.date} ${m.title}】\n出席者: ${m.attendees||''}\n内容:\n${m.content||''}\n決定事項・next action:\n${m.actions||''}`).join('\n\n----\n\n');
-    const out=await callClaude(
+    const out=await callAI(
       'あなたは経験豊富な税理士です。顧問先の当事業年度の議事録一覧を読み、決算・申告時に確認すべき観点でまとめます。重要な決定事項、会計・税務に影響する事項（設備投資、役員報酬、借入、特別損益、税制特例の適用など）、継続検討事項・宿題を、漏れなく簡潔な箇条書きで整理してください。決算時のチェックに使える実用的なまとめにし、日本語の本文のみを出力してください。',
       `顧問先「${c.name}」の${key}の議事録です。決算時に踏まえるべき内容をまとめてください。\n\n${body}`, 2000);
     if(!data.clientSummaries[cid])data.clientSummaries[cid]={};
@@ -888,14 +907,28 @@ function exportMinutes(){ if(!data.minutes.length){ toast('出力する議事録
 /* ===== 設定/バックアップ ===== */
 function todayStr(){ const d=new Date(); return d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2); }
 function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
-function saveSettings(){ data.settings.folderUrl=val('setFolderUrl'); data.settings.clientId=val('setClientId'); data.settings.claudeApiKey=val('setClaudeKey'); data.settings.claudeModel=val('setClaudeModel')||'claude-opus-4-8'; persist(false); toast('設定を保存しました','ok'); }
+const AI_MODELS={ gemini:[['gemini-2.5-flash','Gemini 2.5 Flash（無料枠）'],['gemini-2.0-flash','Gemini 2.0 Flash（無料枠）'],['gemini-1.5-flash','Gemini 1.5 Flash（無料枠）']],
+  claude:[['claude-opus-4-8','Claude Opus 4.8（高品質）'],['claude-sonnet-4-6','Claude Sonnet 4.6（標準）'],['claude-haiku-4-5','Claude Haiku 4.5（高速）']] };
+function onProviderChange(){ const p=val('setAiProvider')||'gemini';
+  document.getElementById('setAiModel').innerHTML=AI_MODELS[p].map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+  if(p==='gemini'){ document.getElementById('aiKeyLabel').textContent='Gemini APIキー'; document.getElementById('setAiKey').placeholder='AIza...';
+    document.getElementById('aiKeyHint').innerHTML='<a class="link" href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> で無料取得（無料枠あり）。キーはこの端末内にのみ保存されます。';
+    setVal('setAiKey',data.settings.geminiApiKey||''); setVal('setAiModel',data.settings.geminiModel||'gemini-2.5-flash'); }
+  else { document.getElementById('aiKeyLabel').textContent='Claude APIキー'; document.getElementById('setAiKey').placeholder='sk-ant-...';
+    document.getElementById('aiKeyHint').innerHTML='<a class="link" href="https://console.anthropic.com/" target="_blank">Anthropic Console</a> で取得。キーはこの端末内にのみ保存されます。';
+    setVal('setAiKey',data.settings.claudeApiKey||''); setVal('setAiModel',data.settings.claudeModel||'claude-opus-4-8'); } }
+function saveSettings(){ data.settings.folderUrl=val('setFolderUrl'); data.settings.clientId=val('setClientId');
+  const p=val('setAiProvider')||'gemini'; data.settings.aiProvider=p;
+  if(p==='gemini'){ data.settings.geminiApiKey=val('setAiKey'); data.settings.geminiModel=val('setAiModel')||'gemini-2.5-flash'; }
+  else { data.settings.claudeApiKey=val('setAiKey'); data.settings.claudeModel=val('setAiModel')||'claude-opus-4-8'; }
+  persist(false); toast('設定を保存しました','ok'); }
 function openDriveFolder(){ const url=val('setFolderUrl')||data.settings.folderUrl; if(!url){ toast('フォルダURLを入力してください','err'); return; } window.open(url,'_blank'); }
 function exportBackup(){ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='komon-manager-data.json'; a.click(); URL.revokeObjectURL(a.href); toast('データを書き出しました','ok'); }
 function importBackup(ev){ const f=ev.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=e=>{ try{ applyImportedData(JSON.parse(e.target.result)); toast('データを取り込みました','ok'); }catch(err){ toast('読み込み失敗: '+err.message,'err'); } ev.target.value=''; }; r.readAsText(f); }
 function applyImportedData(d){ data.clients=d.clients||[]; data.filings=d.filings||{}; data.filingSteps=d.filingSteps||{}; data.interimDone=d.interimDone||{}; data.modules=d.modules||{}; data.gensen=d.gensen||{monthly:{},special:{}}; data.clientSummaries=d.clientSummaries||{}; data.docLists=d.docLists||[]; data.minutes=d.minutes||[];
   if(d.settings){ data.settings.folderUrl=d.settings.folderUrl||data.settings.folderUrl; data.settings.clientId=d.settings.clientId||data.settings.clientId; data.settings.claudeApiKey=d.settings.claudeApiKey||data.settings.claudeApiKey; data.settings.claudeModel=d.settings.claudeModel||data.settings.claudeModel; }
   filingMonth=null; interimMonth=null; persist(false); restoreSettingsUI(); refreshAll(); }
-function restoreSettingsUI(){ setVal('setFolderUrl',data.settings.folderUrl); setVal('setClientId',data.settings.clientId); setVal('setClaudeKey',data.settings.claudeApiKey||''); setVal('setClaudeModel',data.settings.claudeModel||'claude-opus-4-8'); }
+function restoreSettingsUI(){ setVal('setFolderUrl',data.settings.folderUrl); setVal('setClientId',data.settings.clientId); setVal('setAiProvider',data.settings.aiProvider||'gemini'); onProviderChange(); }
 
 /* ===== Google Drive 同期 ===== */
 const DriveSync=(function(){
