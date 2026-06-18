@@ -387,6 +387,19 @@
   <div class="modal-foot"><button class="text" onclick="closeModal('docTplModal')">キャンセル</button><button class="primary" onclick="saveDocTemplate()">保存</button></div>
 </div></div>
 
+<!-- 一括入力モーダル -->
+<div class="modal-bg" id="bulkModal"><div class="modal">
+  <div class="modal-head"><h3>一括入力</h3><button class="icon x" onclick="closeModal('bulkModal')">✕</button></div>
+  <div class="modal-body">
+    <div class="hint" style="margin-bottom:12px">選択した工程列に、対象行へまとめて値を登録します。</div>
+    <div class="field full" style="margin-bottom:14px"><label>対象の列</label><select id="bulk_col"></select></div>
+    <div class="field full" style="margin-bottom:14px"><label>登録する値</label><select id="bulk_val" onchange="onBulkValChange()"></select></div>
+    <div class="field full" id="bulk_dateWrap" style="display:none;margin-bottom:14px"><label>指定日</label><input type="date" id="bulk_date"></div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="bulk_onlyEmpty" style="width:auto"> 未入力のセルだけに登録（既存の値は上書きしない）</label>
+  </div>
+  <div class="modal-foot"><button class="text" onclick="closeModal('bulkModal')">キャンセル</button><button class="primary" onclick="applyBulk()">適用</button></div>
+</div></div>
+
 <!-- 議事録モーダル -->
 <div class="modal-bg" id="minuteModal"><div class="modal" style="max-width:min(1280px,96vw)">
   <div class="modal-head"><h3 id="minuteModalTitle">議事録</h3><button class="icon x" onclick="closeModal('minuteModal')">✕</button></div>
@@ -519,6 +532,22 @@ function addGridSpacer(table){ // 右端が縦スクロールバーに隠れな�
   if(table.tHead&&table.tHead.rows[0]&&!table.tHead.rows[0].querySelector('.spacer'))table.tHead.rows[0].appendChild(mk());
   if(table.tBodies[0])[...table.tBodies[0].rows].forEach(r=>{ const td=document.createElement('td'); td.className='spacer'; r.appendChild(td); });
   if(table.tFoot&&table.tFoot.rows[0]){ const td=document.createElement('td'); td.className='spacer'; table.tFoot.rows[0].appendChild(td); } }
+/* ===== 一括入力（工程列にまとめて 今日/対象外/指定日/クリア を登録） ===== */
+let gridBulk=null;
+function pageActive(id){ const s=document.getElementById('page-'+id); return s&&s.classList.contains('active'); }
+function setBulk(id,cfg){ if(pageActive(id))gridBulk=cfg; }
+function bulkBtn(){ return `<button onclick="openBulk()">🗂 一括入力</button>`; }
+function openBulk(){ if(!gridBulk||!gridBulk.cols.length||!gridBulk.cids.length){ toast('一括入力できる行・列がありません','err'); return; }
+  document.getElementById('bulk_col').innerHTML=`<option value="__ALL__">すべての${gridBulk.colWord||'工程'}列</option>`+gridBulk.cols.map(c=>`<option value="${esc(c.name)}">${esc(c.label||c.name)}</option>`).join('');
+  const docs=gridBulk.valueType==='docstatus';
+  document.getElementById('bulk_val').innerHTML=docs?`<option value="done">回収済</option><option value="clear">未回収（クリア）</option>`:`<option value="today">今日</option><option value="na">対象外</option><option value="date">指定日</option><option value="clear">クリア</option>`;
+  document.getElementById('bulk_onlyEmpty').checked=false; onBulkValChange(); openModal('bulkModal'); }
+function onBulkValChange(){ document.getElementById('bulk_dateWrap').style.display=(val('bulk_val')==='date')?'block':'none'; }
+function applyBulk(){ if(!gridBulk)return; const vsel=val('bulk_val'); const onlyEmpty=document.getElementById('bulk_onlyEmpty').checked;
+  let value; if(vsel==='today'||vsel==='done')value=todayISO(); else if(vsel==='na')value='対象外'; else if(vsel==='date'){ value=val('bulk_date'); if(!value){ toast('指定日を選択してください','err'); return; } } else value='';
+  const colSel=val('bulk_col'); const cols=colSel==='__ALL__'?gridBulk.cols.map(c=>c.name):[colSel];
+  let n=0; gridBulk.cids.forEach(cid=>{ const obj=gridBulk.get(cid); cols.forEach(name=>{ if(onlyEmpty&&obj[name])return; if(value)obj[name]=value; else delete obj[name]; n++; }); });
+  persist(); closeModal('bulkModal'); if(gridBulk.render)gridBulk.render(); toast(`${n}件に一括入力しました`,'ok'); }
 function enhanceArrows(table,key){ const st=gridStates[key]; const headRow=table.tHead.rows[0];
   [...headRow.cells].forEach((th,i)=>{ const old=th.querySelector('.sort-ar'); if(old)old.remove(); if(st.sort&&st.sort.i===i){ const a=document.createElement('span'); a.className='sort-ar'; a.textContent=st.sort.dir>0?' ▲':' ▼'; a.style.color='var(--blue)'; th.appendChild(a); } }); }
 function openFilterMenu(ev,table,key,i){ const st=gridStates[key]; let menu=document.getElementById('fltMenu'); if(!menu){ menu=document.createElement('div'); menu.id='fltMenu'; document.body.appendChild(menu); } menu.className='flt-menu';
@@ -694,7 +723,7 @@ function renderFilingDetail(){
   const M=filingMonth; const cs=clientsByFiscal(M); const steps=getSteps(M); const today=new Date(); today.setHours(0,0,0,0);
   let html=`<div class="page-head"><button class="text" onclick="backFiling()">← 一覧へ戻る</button>
     <h2 style="margin-left:6px">${filingYear}年 ${M}月決算 申告業務</h2><span class="chip blue">${wareki(filingYear)}</span>
-    <div class="toolbar"><button onclick="openSteps()">⚙ 工程を編集</button><button onclick="exportFilingMonth()">📤 Excel出力</button></div></div>`;
+    <div class="toolbar"><button onclick="openSteps()">⚙ 工程を編集</button>${bulkBtn()}<button onclick="exportFilingMonth()">📤 Excel出力</button></div></div>`;
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>${M}月決算の契約中顧問先がありません。顧問先の決算月・ステータスをご確認ください。</div></div>`; document.getElementById('filingView').innerHTML=html; return; }
   let head=`<tr><th class="name">顧問先</th><th>主担当者</th><th>備考</th>`+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`<th>確定法人税等</th><th>確定消費税</th><th>中間申告</th></tr>`;
   let body=cs.map(c=>{ const f=getFiling(filingYear,c.id); const tx=f.tax||{}; const res=calcInterim(tx);
@@ -711,6 +740,7 @@ function renderFilingDetail(){
   html+=`<div class="grid-wrap"><table class="grid"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     <div class="hint" style="margin-top:12px">※ セルをクリックで完了日を入力。「計算/入力」で確定税額を入力すると翌期の中間申告が自動計算され、<b>中間申告管理</b>に反映されます。ヘッダをクリックで並び替え、各列の🔍で絞り込みできます。</div>`;
   document.getElementById('filingView').innerHTML=html;
+  setBulk('filing',{colWord:'工程',valueType:'date',cols:steps.map(s=>({name:s.name})),cids:cs.map(c=>c.id),get:cid=>{ const f=ensureFiling(filingYear,cid); if(!f.cells)f.cells={}; return f.cells; },render:()=>{renderFiling();renderDashboard();}});
   enhanceGrid(document.querySelector('#filingView table.grid'),'filing'+M);
 }
 function setFilingNote(cid,v){ ensureFiling(filingYear,cid).note=v; persist(); }
@@ -829,7 +859,7 @@ function interimFixedCell(col,c,ev){ switch(col.k){
 function renderInterimDetail(){ const CY=interimYear, CM=interimMonth; const rows=interimRows(CY,CM); const steps=getInterimSteps(); const today=new Date(); today.setHours(0,0,0,0);
   let html=`<div class="page-head"><button class="text" onclick="backInterim()">← 一覧へ戻る</button>
     <h2 style="margin-left:6px">${CY}年${CM}月中間申告</h2><span class="chip blue">${wareki(CY)}</span>
-    <div class="toolbar"><button onclick="openInterimSteps()">⚙ 工程を編集</button><button onclick="exportInterimMonth()">📤 Excel出力</button></div></div>
+    <div class="toolbar"><button onclick="openInterimSteps()">⚙ 工程を編集</button>${bulkBtn()}<button onclick="exportInterimMonth()">📤 Excel出力</button></div></div>
     <div class="hint" style="margin-bottom:14px">この月（${CY}年${CM}月）に中間申告・納付期限が到来する顧問先です（決算月に関係なく集計）。納付方法と完了の間の工程は「工程を編集」で追加・修正・削除できます。</div>`;
   if(!rows.length){ html+=`<div class="card"><div class="empty"><div class="big">🗓</div>${CY}年${CM}月に納付期限が到来する中間申告はありません。</div></div>`; document.getElementById('interimView').innerHTML=html; return; }
   let head=`<tr>`+INTERIM_FIXED.map(col=>`<th class="${col.k==='name'?'name':''}" style="${col.num?'text-align:right':''}">${col.label}</th>`).join('')+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`<th>完了</th></tr>`;
@@ -843,6 +873,7 @@ function renderInterimDetail(){ const CY=interimYear, CM=interimMonth; const row
   let foot=`<tr style="background:#fafbfc;font-weight:600">`+INTERIM_FIXED.map((col,i)=>{ if(col.num)return `<td class="yen" style="text-align:right">${yen(sum(col.k))}</td>`; return `<td class="${col.k==='name'?'name':''}">${i===0?'合計':''}</td>`; }).join('')+steps.map(()=>'<td></td>').join('')+`<td></td></tr>`;
   html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>`;
   document.getElementById('interimView').innerHTML=html;
+  setBulk('interim',{colWord:'工程',valueType:'date',cols:steps.map(s=>({name:s.name})),cids:rows.map(r=>r.client.id),get:cid=>{ const k=interimKey(CY,CM,cid); if(!data.interimCells[k])data.interimCells[k]={}; return data.interimCells[k]; },render:()=>renderInterimDetail()});
   enhanceGrid(document.querySelector('#interimView table.grid'),'interim'+CY+'-'+CM);
 }
 function toggleInterimDone(cid,checked){ const key=interimKey(interimYear,interimMonth,cid); if(checked)data.interimDone[key]=true; else delete data.interimDone[key]; persist(); renderInterimDetail(); }
@@ -875,7 +906,7 @@ function renderModule(key){
   const def=getModuleDef(key); const year=getModuleYear(key); const store=getModuleStore(key); const steps=store.steps; const cs=moduleClients(key); const today=new Date(); today.setHours(0,0,0,0);
   let html=`<div class="page-head"><h2>${def.label}</h2>
     <div class="year-nav"><button class="icon" onclick="changeModuleYear('${key}',-1)">◀</button><b>${year}年（${wareki(year)}）</b><button class="icon" onclick="changeModuleYear('${key}',1)">▶</button></div>
-    <div class="toolbar"><button onclick="openModuleSteps('${key}')">⚙ 工程を編集</button><button onclick="exportModule('${key}')">📤 Excel出力</button></div></div>
+    <div class="toolbar"><button onclick="openModuleSteps('${key}')">⚙ 工程を編集</button>${bulkBtn()}<button onclick="exportModule('${key}')">📤 Excel出力</button></div></div>
     <div class="hint" style="margin-bottom:14px">${esc(def.note)}</div>`;
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>対象の顧問先がありません。</div></div>`; document.getElementById(key+'View').innerHTML=html; return; }
   let head=`<tr><th class="name">顧問先</th><th>主担当者</th><th>備考</th>`+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`</tr>`;
@@ -887,6 +918,7 @@ function renderModule(key){
   html+=`<div class="grid-wrap"><table class="grid"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     <div class="hint" style="margin-top:12px">※ セルをクリックで完了日を入力できます。ヘッダをクリックで並び替え、各列の🔍で絞り込みできます。</div>`;
   document.getElementById(key+'View').innerHTML=html;
+  setBulk(key,{colWord:'工程',valueType:'date',cols:steps.map(s=>({name:s.name})),cids:cs.map(c=>c.id),get:cid=>{ const r=moduleRow(key,year,cid); if(!r.cells)r.cells={}; return r.cells; },render:()=>renderModule(key)});
   enhanceGrid(document.querySelector('#'+key+'View table.grid'),'mod_'+key);
 }
 function exportModule(key){ const def=getModuleDef(key); const year=getModuleYear(key); const steps=getModuleStore(key).steps; const cs=moduleClients(key);
@@ -928,7 +960,7 @@ function renderGensenMonthlyOverview(){
 function renderGensenMonthlyDetail(){ const m=gensenMonth; const cs=gensenMonthlyClients(); const steps=getGensenSteps(); const today=new Date(); today.setHours(0,0,0,0);
   let html=`<div class="page-head"><button class="text" onclick="backGensen()">← 一覧へ戻る</button>
     <h2 style="margin-left:6px">源泉税管理 ${gensenYear}年 ${gensenDueLabel(m)}</h2>
-    <div class="toolbar"><button onclick="openGensenSteps()">⚙ 工程を編集</button><button onclick="exportGensen()">📤 Excel出力</button></div></div>`+gensenTabs();
+    <div class="toolbar"><button onclick="openGensenSteps()">⚙ 工程を編集</button>${bulkBtn()}<button onclick="exportGensen()">📤 Excel出力</button></div></div>`+gensenTabs();
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>毎月納付の対象顧問先がありません。顧問先情報の「源泉税納付ステータス」をご確認ください。</div></div>`; document.getElementById('gensenView').innerHTML=html; return; }
   let head=`<tr><th class="name">顧問先名</th><th>所轄税務署</th><th>納付方法</th><th>連絡方法</th><th>給与ソフト</th><th style="text-align:right">未済繰越額</th><th style="text-align:right">当月源泉税額</th><th style="text-align:right">翌月繰越未済額</th>`+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`<th>備考</th></tr>`;
   let body=cs.map(c=>{ const r=gmPeek(gensenYear,m,c.id); const carry=gmCarry(gensenYear,m,c.id); const fwd=carry+num(r.current);
@@ -943,6 +975,7 @@ function renderGensenMonthlyDetail(){ const m=gensenMonth; const cs=gensenMonthl
   html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     <div class="hint" style="margin-top:12px">※ 翌月繰越未済額＝未済繰越額＋当月源泉税額（自動）。未済繰越額は前月の翌月繰越未済額（1月分は前年の年末調整「控除未済額」）から自動連動します。工程の日付セルは対象外も選択できます。</div>`;
   document.getElementById('gensenView').innerHTML=html;
+  setBulk('gensen',{colWord:'工程',valueType:'date',cols:steps.map(s=>({name:s.name})),cids:cs.map(c=>c.id),get:cid=>{ const r=gmEnsure(gensenYear,m,cid); if(!r.cells)r.cells={}; return r.cells; },render:()=>renderGensen()});
   enhanceGrid(document.querySelector('#gensenView table.grid'),'gensenM'+m);
 }
 /* 納期特例（1〜6月分） */
@@ -952,7 +985,7 @@ function setGsCurrent(cid,raw){ const r=gsEnsure(gensenYear,cid); const v=String
 function setGsNote(cid,v){ const r=gsEnsure(gensenYear,cid); v=(v==null?'':String(v).trim()); if(v)r.note=v; else delete r.note; persist(); }
 function editGsCell(e,cid,encStep){ const step=decodeURIComponent(encStep); const r=gsPeek(gensenYear,cid); openCellEditor(e,(r.cells&&r.cells[step])||'',v=>{ const rr=gsEnsure(gensenYear,cid); if(!rr.cells)rr.cells={}; if(v)rr.cells[step]=v; else delete rr.cells[step]; persist(); renderGensen(); }); }
 function renderGensenSpecial(){ const cs=gensenSpecialClients(); const steps=getGensenSteps(); const today=new Date(); today.setHours(0,0,0,0);
-  let html=`<div class="page-head"><h2>源泉税管理</h2>${gensenYearNav()}<div class="toolbar"><button onclick="openGensenSteps()">⚙ 工程を編集</button><button onclick="exportGensen()">📤 Excel出力</button></div></div>`+gensenTabs()+
+  let html=`<div class="page-head"><h2>源泉税管理</h2>${gensenYearNav()}<div class="toolbar"><button onclick="openGensenSteps()">⚙ 工程を編集</button>${bulkBtn()}<button onclick="exportGensen()">📤 Excel出力</button></div></div>`+gensenTabs()+
     `<div class="hint" style="margin-bottom:14px">納期特例：1〜6月分（納付期限 7/10）の進捗管理です。7〜12月分は年末調整管理で対応します。未済繰越額は前年の年末調整「控除未済額」から自動セットされます。</div>`;
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>納期特例の対象顧問先がありません。顧問先情報の「源泉税納付ステータス」をご確認ください。</div></div>`; document.getElementById('gensenView').innerHTML=html; return; }
   let head=`<tr><th class="name">顧問先名</th><th>所轄税務署</th><th>納付方法</th><th>連絡方法</th><th>給与ソフト</th><th style="text-align:right">未済繰越額</th><th style="text-align:right">源泉税額(1〜6月)</th><th style="text-align:right">翌期繰越未済額</th>`+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`<th>備考</th></tr>`;
@@ -967,6 +1000,7 @@ function renderGensenSpecial(){ const cs=gensenSpecialClients(); const steps=get
       <td><input style="min-width:120px;padding:5px 7px" value="${esc(r.note||'')}" onchange="setGsNote('${c.id}',this.value)"></td></tr>`; }).join('');
   html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
   document.getElementById('gensenView').innerHTML=html;
+  setBulk('gensen',{colWord:'工程',valueType:'date',cols:steps.map(s=>({name:s.name})),cids:cs.map(c=>c.id),get:cid=>{ const r=gsEnsure(gensenYear,cid); if(!r.cells)r.cells={}; return r.cells; },render:()=>renderGensen()});
   enhanceGrid(document.querySelector('#gensenView table.grid'),'gensenSp');
 }
 function exportGensen(){ const steps=getGensenSteps(); const dv=(r,name)=>{ const v=r.cells&&r.cells[name]; return v==='対象外'?'対象外':(v?fmtMD(v):''); };
@@ -994,7 +1028,7 @@ function renderNencho(){
   const cs=activeClients();
   let html=`<div class="page-head"><h2>年末調整管理</h2>
     <div class="year-nav"><button class="icon" onclick="changeNenchoYear(-1)">◀</button><b>${nenchoYear}年（${wareki(nenchoYear)}）</b><button class="icon" onclick="changeNenchoYear(1)">▶</button></div>
-    <div class="toolbar"><button onclick="exportNencho()">📤 Excel出力</button></div></div>
+    <div class="toolbar">${bulkBtn()}<button onclick="exportNencho()">📤 Excel出力</button></div></div>
     <div class="hint" style="margin-bottom:14px">契約中の顧問先を対象に年末調整を管理します。各種申告書回収・給与登録・年調確定・源泉徴収票等送付はセルクリックで日付（または対象外）を入力。納付方法は顧問先情報から表示。ヘッダの▾で絞り込みできます。</div>`;
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>契約中の顧問先がありません。</div></div>`; document.getElementById('nenchoView').innerHTML=html; return; }
   let head=`<tr><th class="name">顧問先</th><th>区分</th><th>納付方法</th><th>備考</th><th>各種申告書回収</th><th>給与登録</th><th>年調確定</th><th>源泉徴収票等送付</th><th style="text-align:right">当月源泉税額</th><th style="text-align:right">年末調整不足額</th><th style="text-align:right">年末調整還付額</th><th style="text-align:right">控除未済額</th></tr>`;
@@ -1012,6 +1046,7 @@ function renderNencho(){
   html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     <div class="hint" style="margin-top:12px">※ 当月源泉税額・年末調整不足額・年末調整還付額は正の金額で入力します（還付額は△表示で減算）。控除未済額＝当月源泉税額＋年末調整不足額−年末調整還付額で自動計算し、源泉税管理（毎月納付の翌年1月分／納期特例の1〜6月分）の未済繰越額に連携します。</div>`;
   document.getElementById('nenchoView').innerHTML=html;
+  setBulk('nencho',{colWord:'工程',valueType:'date',cols:[{name:'collect',label:'各種申告書回収'},{name:'payroll',label:'給与登録'},{name:'confirm',label:'年調確定'},{name:'send',label:'源泉徴収票等送付'}],cids:cs.map(c=>c.id),get:cid=>nEnsure(nenchoYear,cid),render:()=>renderNencho()});
   enhanceGrid(document.querySelector('#nenchoView table.grid'),'nencho');
 }
 function exportNencho(){ const cs=activeClients();
@@ -1185,7 +1220,7 @@ function setCustomNote(kind,id,cid,v){ cRow(cTable(kind,id),cid).note=v; persist
 function renderCustomDetail(kind){ const def=CUSTOM_DEFS[kind]; const t=cTable(kind,customCurrent[kind]); const cs=resolveSel(t.sel); const cols=t.cols||[]; const today=new Date(); today.setHours(0,0,0,0);
   let html=`<div class="page-head"><button class="text" onclick="backCustom('${kind}')">← 一覧へ戻る</button>
     <h2 style="margin-left:6px">${esc(t.title)}</h2><span class="chip blue">${esc(selSummary(t.sel))}</span>
-    <div class="toolbar"><button onclick="openCustomCreate('${kind}','${t.id}')">⚙ 編集</button><button onclick="exportCustom('${kind}')">📤 Excel出力</button></div></div>`;
+    <div class="toolbar"><button onclick="openCustomCreate('${kind}','${t.id}')">⚙ 編集</button>${bulkBtn()}<button onclick="exportCustom('${kind}')">📤 Excel出力</button></div></div>`;
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>対象の顧問先がありません。「⚙ 編集」で対象顧問先の条件をご確認ください。</div></div>`; document.getElementById(def.view).innerHTML=html; return; }
   let head=`<tr><th class="name">顧問先</th>`+cols.map(col=>`<th class="step">${esc(col.name)}${col.due?`<span class="due">${fmtMD(col.due)}</span>`:''}</th>`).join('')+`<th>備考</th></tr>`;
   let body=cs.map(c=>{ const r=cRow(t,c.id);
@@ -1197,6 +1232,7 @@ function renderCustomDetail(kind){ const def=CUSTOM_DEFS[kind]; const t=cTable(k
   html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     <div class="hint" style="margin-top:12px">※ セルクリックで日付（または対象外）を入力。ヘッダの▾で完了/未了/対象外の絞り込みができます。</div>`;
   document.getElementById(def.view).innerHTML=html;
+  setBulk(kind,{colWord:def.colWord,valueType:'date',cols:cols.map(col=>({name:col.name})),cids:cs.map(c=>c.id),get:cid=>{ const r=cRow(t,cid); if(!r.cells)r.cells={}; return r.cells; },render:()=>renderCustom(kind)});
   enhanceGrid(document.querySelector('#'+def.view+' table.grid'),kind+'_'+t.id);
 }
 function deleteCustomTable(kind,id){ const t=cTable(kind,id); if(!confirm(`「${t.title}」を削除しますか？`))return; data[CUSTOM_DEFS[kind].store]=cStore(kind).filter(x=>x.id!==id); if(customCurrent[kind]===id)customCurrent[kind]=null; persist(); renderCustom(kind); toast('削除しました','ok'); }
@@ -1248,7 +1284,7 @@ function toggleDocStatus(id,cid,encName){ const name=decodeURIComponent(encName)
 function renderDocsDetail(){ const t=cTable('docs',customCurrent.docs); const cs=resolveSel(t.sel); const cols=t.cols||[]; const pr=tableProgress('docs',t);
   let html=`<div class="page-head"><button class="text" onclick="backCustom('docs')">← 一覧へ戻る</button>
     <h2 style="margin-left:6px">${esc(t.title)}</h2><span class="chip blue">${esc(selSummary(t.sel))}</span>
-    <div class="toolbar"><button onclick="openDocTemplate()">📝 案内文作成</button><button onclick="generateDocsPDFs('${t.id}')">📄 一括PDF作成</button><button onclick="openCustomCreate('docs','${t.id}')">⚙ 編集</button><button onclick="exportCustom('docs')">📤 Excel出力</button></div></div>
+    <div class="toolbar"><button onclick="openDocTemplate()">📝 案内文作成</button><button onclick="generateDocsPDFs('${t.id}')">📄 一括PDF作成</button>${bulkBtn()}<button onclick="openCustomCreate('docs','${t.id}')">⚙ 編集</button><button onclick="exportCustom('docs')">📤 Excel出力</button></div></div>
     <div class="row-flex" style="margin-bottom:12px"><div class="pbar" style="width:200px"><span style="width:${pr.pct}%"></span></div> 回収 ${pr.done}/${pr.total}（${pr.pct}%）</div>`;
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>対象の顧問先がありません。「⚙ 編集」で対象顧問先の条件をご確認ください。</div></div>`; document.getElementById('docsView').innerHTML=html; return; }
   // 資料項目の一覧（メモ含む・所内参照用）
@@ -1262,6 +1298,7 @@ function renderDocsDetail(){ const t=cTable('docs',customCurrent.docs); const cs
   html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     <div class="hint" style="margin-top:12px">※ セルをクリックで「回収済／未回収」を切替（進捗バーに反映）。所内メモはPDFには出力されません。「一括PDF作成」で顧問先1社につき1ファイルのPDFを作成します。</div>`;
   document.getElementById('docsView').innerHTML=html;
+  setBulk('docs',{colWord:'資料項目',valueType:'docstatus',cols:cols.map(col=>({name:col.name})),cids:cs.map(c=>c.id),get:cid=>{ const r=cRow(t,cid); if(!r.status)r.status={}; return r.status; },render:()=>renderDocsDetail()});
   enhanceGrid(document.querySelector('#docsView table.grid'),'docs_'+t.id);
 }
 function exportCustomDocs(t){ const cs=resolveSel(t.sel); const cols=t.cols||[];
