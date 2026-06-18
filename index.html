@@ -1082,55 +1082,48 @@ function exportNencho(){ const cs=activeClients();
     aoa.push([c.code||'',c.name,c.gensenStatus||'',c.payMethod||'',r.note||'',dv('collect'),dv('payroll'),dv('confirm'),dv('send'),num(r.genzei)||'',num(r.shortfall)||'',num(r.refund)||'',nenchoDeductionOf(nenchoYear,c.id)||'']); });
   const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'年末調整'); XLSX.writeFile(wb,`年末調整_${nenchoYear}年_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
 
-/* ===== 月次（資料回収→入力→報告） ===== */
+/* ===== 月次（資料回収→入力→報告／12か月一覧） ===== */
 const MONTHLY_STEPS=[{key:'shiryo',label:'資料回収'},{key:'nyuryoku',label:'入力'},{key:'houkoku',label:'報告'}];
 function monthlyClients(){ if(Array.isArray(data.monthlyTargets))return data.monthlyTargets.map(id=>clientById(id)).filter(Boolean); return activeClients(); }
-function mPeek(y,m,cid){ return data.monthly[y+'__'+m+'__'+cid]||{}; }
-function mEnsure(y,m,cid){ const k=y+'__'+m+'__'+cid; if(!data.monthly[k])data.monthly[k]={cells:{},note:''}; return data.monthly[k]; }
+function mPeek(y,cid){ return data.monthly[y+'__'+cid]||{cells:{},note:''}; }
+function mEnsure(y,cid){ const k=y+'__'+cid; if(!data.monthly[k])data.monthly[k]={cells:{},note:''}; if(!data.monthly[k].cells)data.monthly[k].cells={}; return data.monthly[k]; }
 function isDone(v){ return v&&v!=='対象外'; }
+function mKey(m,step){ return m+'_'+step; }
 function changeMonthlyYear(d){ monthlyYear+=d; renderMonthly(); }
-function openMonthlyMonth(m){ monthlyMonth=m; renderMonthly(); }
-function backMonthly(){ monthlyMonth=null; renderMonthly(); }
-function editMonthlyCell(e,m,cid,key){ const r=mPeek(monthlyYear,m,cid); openCellEditor(e,(r.cells&&r.cells[key])||'',v=>{ const rr=mEnsure(monthlyYear,m,cid); if(!rr.cells)rr.cells={}; if(v)rr.cells[key]=v; else delete rr.cells[key]; persist(); renderMonthly(); renderDashboard(); }); }
-function setMonthlyNote(m,cid,v){ const r=mEnsure(monthlyYear,m,cid); v=(v==null?'':String(v).trim()); if(v)r.note=v; else delete r.note; persist(); }
-function renderMonthly(){ if(monthlyMonth) renderMonthlyDetail(); else renderMonthlyOverview(); }
-function renderMonthlyOverview(){
-  const cs=monthlyClients();
+function editMonthlyCell(e,m,cid,key){ const r=mPeek(monthlyYear,cid); const k=mKey(m,key); openCellEditor(e,(r.cells&&r.cells[k])||'',v=>{ const rr=mEnsure(monthlyYear,cid); if(v)rr.cells[k]=v; else delete rr.cells[k]; persist(); renderMonthly(); renderDashboard(); }); }
+function setMonthlyNote(cid,v){ const r=mEnsure(monthlyYear,cid); v=(v==null?'':String(v).trim()); if(v)r.note=v; else delete r.note; persist(); }
+function renderMonthly(){ const cs=monthlyClients(); const today=new Date(); today.setHours(0,0,0,0);
   let html=`<div class="page-head"><h2>月次</h2>
     <div class="year-nav"><button class="icon" onclick="changeMonthlyYear(-1)">◀</button><b>${monthlyYear}年（${wareki(monthlyYear)}）</b><button class="icon" onclick="changeMonthlyYear(1)">▶</button></div>
-    <div class="toolbar"><button onclick="openMonthlyTargets()">🏢 対象顧問先（${cs.length}社）</button></div></div>
-    <div class="hint" style="margin:0 0 16px">月次処理（資料回収→入力→報告）の進捗を管理します。カードをクリックするとその月の進捗管理が開きます。</div>
-    <div class="month-cards">`;
-  for(let m=1;m<=12;m++){ let done=0,total=cs.length*MONTHLY_STEPS.length; cs.forEach(c=>{ const r=mPeek(monthlyYear,m,c.id); MONTHLY_STEPS.forEach(s=>{ if(r.cells&&isDone(r.cells[s.key]))done++; }); });
-    const pct=total?Math.round(done/total*100):0;
-    html+=`<div class="mcard ${cs.length?'':'dim'}" onclick="openMonthlyMonth(${m})"><div class="t">${m}月</div><div class="s">${cs.length}社 ／ 進捗 ${pct}%</div><div class="pbar" style="width:100%;margin-top:8px"><span style="width:${pct}%"></span></div></div>`; }
-  html+=`</div>`; document.getElementById('monthlyView').innerHTML=html;
-}
-function renderMonthlyDetail(){ const m=monthlyMonth; const cs=monthlyClients();
-  let html=`<div class="page-head"><button class="text" onclick="backMonthly()">← 一覧へ戻る</button>
-    <h2 style="margin-left:6px">月次 ${monthlyYear}年 ${m}月</h2>
-    <div class="toolbar">${bulkBtn()}<button onclick="exportMonthly()">📤 Excel出力</button></div></div>`;
+    <div class="toolbar"><button onclick="openMonthlyTargets()">🏢 対象顧問先（${cs.length}社）</button>${bulkBtn()}<button onclick="exportMonthly()">📤 Excel出力</button></div></div>
+    <div class="hint" style="margin:0 0 14px">対象顧問先について、1〜12月の月次処理（資料回収→入力→報告）を一覧で管理します。各セルをクリックで日付（または対象外）を入力。ヘッダの▾で絞り込み、🗂一括入力でまとめて登録できます。</div>`;
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>対象顧問先が未設定です。「🏢 対象顧問先」から選択してください。</div></div>`; document.getElementById('monthlyView').innerHTML=html; return; }
-  let head=`<tr><th class="name">顧問先</th><th>主担当者</th>`+MONTHLY_STEPS.map(s=>`<th class="step">${s.label}</th>`).join('')+`<th>備考</th></tr>`;
-  let body=cs.map(c=>{ const r=mPeek(monthlyYear,m,c.id);
-    const dcell=(s)=>{ const v=r.cells&&r.cells[s.key]; let cls='todo',txt='未'; if(v==='対象外'){cls='na';txt='対象外';} else if(v){cls='done';txt=fmtMD(v);} return `<td><span class="cell ${cls}" onclick="editMonthlyCell(event,${m},'${c.id}','${s.key}')">${txt}</span></td>`; };
-    return `<tr><td class="name">${clientLink(c)}</td><td>${esc(c.staff||'')}</td>${MONTHLY_STEPS.map(s=>dcell(s)).join('')}<td><input style="min-width:120px;padding:5px 7px" value="${esc(r.note||'')}" onchange="setMonthlyNote(${m},'${c.id}',this.value)"></td></tr>`; }).join('');
-  html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody></table></div>
-    <div class="hint" style="margin-top:12px">※ セルクリックで日付（または対象外）を入力。資料回収→入力→報告の順で進めます。</div>`;
-  setBulk('monthly',{colWord:'工程',valueType:'date',cols:MONTHLY_STEPS.map(s=>({name:s.key,label:s.label})),cids:cs.map(c=>c.id),get:cid=>{ const r=mEnsure(monthlyYear,m,cid); if(!r.cells)r.cells={}; return r.cells; },render:()=>{renderMonthly();renderDashboard();}});
+  let head=`<tr><th class="name">顧問先</th><th>主担当者</th>`;
+  for(let m=1;m<=12;m++)MONTHLY_STEPS.forEach(s=>{ head+=`<th class="step">${s.label}<span class="due">${m}月</span></th>`; });
+  head+=`<th>備考</th></tr>`;
+  let body=cs.map(c=>{ const r=mPeek(monthlyYear,c.id); let row=`<td class="name">${clientLink(c)}</td><td>${esc(c.staff||'')}</td>`;
+    for(let m=1;m<=12;m++)MONTHLY_STEPS.forEach(s=>{ const v=r.cells&&r.cells[mKey(m,s.key)]; let cls='todo',txt='未'; if(v==='対象外'){cls='na';txt='対象外';} else if(v){cls='done';txt=fmtMD(v);}
+      row+=`<td><span class="cell ${cls}" onclick="editMonthlyCell(event,${m},'${c.id}','${s.key}')">${txt}</span></td>`; });
+    row+=`<td><input style="min-width:120px;padding:5px 7px" value="${esc(r.note||'')}" onchange="setMonthlyNote('${c.id}',this.value)"></td>`;
+    return `<tr>${row}</tr>`; }).join('');
+  // 一括入力用：列＝12か月×3工程
+  const bcols=[]; for(let m=1;m<=12;m++)MONTHLY_STEPS.forEach(s=>bcols.push({name:mKey(m,s.key),label:`${m}月 ${s.label}`}));
+  setBulk('monthly',{colWord:'月次工程',valueType:'date',cols:bcols,cids:cs.map(c=>c.id),get:cid=>mEnsure(monthlyYear,cid).cells,render:()=>{renderMonthly();renderDashboard();}});
+  html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
   document.getElementById('monthlyView').innerHTML=html;
-  enhanceGrid(document.querySelector('#monthlyView table.grid'),'monthly'+m);
+  enhanceGrid(document.querySelector('#monthlyView table.grid'),'monthly');
 }
-function exportMonthly(){ const m=monthlyMonth; const cs=monthlyClients();
-  const head=['コード','顧問先','主担当者',...MONTHLY_STEPS.map(s=>s.label),'備考']; const aoa=[head];
-  cs.forEach(c=>{ const r=mPeek(monthlyYear,m,c.id); const dv=k=>{ const v=r.cells&&r.cells[k]; return v==='対象外'?'対象外':(v?fmtMD(v):''); };
-    aoa.push([c.code||'',c.name,c.staff||'',...MONTHLY_STEPS.map(s=>dv(s.key)),r.note||'']); });
-  const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,`${m}月`); XLSX.writeFile(wb,`月次_${monthlyYear}年${m}月_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
+function exportMonthly(){ const cs=monthlyClients();
+  const head=['コード','顧問先','主担当者']; for(let m=1;m<=12;m++)MONTHLY_STEPS.forEach(s=>head.push(`${m}月${s.label}`)); head.push('備考');
+  const aoa=[head]; cs.forEach(c=>{ const r=mPeek(monthlyYear,c.id); const row=[c.code||'',c.name,c.staff||''];
+    for(let m=1;m<=12;m++)MONTHLY_STEPS.forEach(s=>{ const v=r.cells&&r.cells[mKey(m,s.key)]; row.push(v==='対象外'?'対象外':(v?fmtMD(v):'')); }); row.push(r.note||''); aoa.push(row); });
+  const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'月次'); XLSX.writeFile(wb,`月次_${monthlyYear}年_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
 /* 月次の滞留集計（資料回収済・入力未了／入力済・報告未了） */
 function monthlyPending(){ const cs=monthlyClients(); let waitInput=0,waitReport=0;
-  cs.forEach(c=>{ for(let m=1;m<=12;m++){ const r=mPeek(monthlyYear,m,c.id); const cl=r.cells||{};
-    if(isDone(cl.shiryo)&&!isDone(cl.nyuryoku)&&cl.nyuryoku!=='対象外')waitInput++;
-    if(isDone(cl.nyuryoku)&&!isDone(cl.houkoku)&&cl.houkoku!=='対象外')waitReport++; } });
+  cs.forEach(c=>{ const cl=mPeek(monthlyYear,c.id).cells||{}; for(let m=1;m<=12;m++){
+    const sh=cl[mKey(m,'shiryo')],ny=cl[mKey(m,'nyuryoku')],ho=cl[mKey(m,'houkoku')];
+    if(isDone(sh)&&!isDone(ny)&&ny!=='対象外')waitInput++;
+    if(isDone(ny)&&!isDone(ho)&&ho!=='対象外')waitReport++; } });
   return {waitInput,waitReport,total:waitInput+waitReport}; }
 /* 対象顧問先設定 */
 function openMonthlyTargets(){ const sel=Array.isArray(data.monthlyTargets)?data.monthlyTargets:activeClients().map(c=>c.id);
