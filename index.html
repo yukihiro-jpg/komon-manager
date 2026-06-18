@@ -38,6 +38,9 @@
   .sub-tabs button{border-radius:20px;}
   .sub-tabs button.on{background:var(--blue);color:#fff;border-color:var(--blue);}
   .ai-btn{font-size:12px;padding:5px 10px;border-radius:14px;border:1px solid #d6c5f0;color:#7b2ff7;background:#faf5ff;}
+  .seg{display:inline-flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;vertical-align:middle;}
+  .seg-btn{font-size:12px;padding:5px 12px;border:none;border-right:1px solid var(--border);border-radius:0;background:#fff;color:var(--muted);}
+  .seg-btn:last-child{border-right:none;} .seg-btn.on{background:var(--blue);color:#fff;}
   .ai-btn:hover{background:#f3e8ff;}
   .ai-box{background:#faf5ff;border:1px solid #e9d8fd;border-radius:10px;padding:14px 16px;font-size:13px;line-height:1.8;white-space:pre-wrap;}
   .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:7px;}
@@ -384,12 +387,15 @@
   <div class="modal-head"><h3 id="minuteModalTitle">議事録</h3><button class="icon x" onclick="closeModal('minuteModal')">✕</button></div>
   <div class="modal-body"><input type="hidden" id="mn_id">
     <div class="form-grid">
-      <div class="field"><label class="req">顧問先</label><select id="mn_client"></select></div>
+      <div class="field full"><label class="req">顧問先</label><select id="mn_client"></select></div>
       <div class="field"><label class="req">日付</label><input id="mn_date" type="date"></div>
-      <div class="field full"><label class="req">件名</label><input id="mn_title"></div>
+      <div class="field"><label>件名（任意）</label><input id="mn_title"></div>
       <div class="field full"><label>出席者</label><input id="mn_attendees"></div>
-      <div class="field full"><label>内容 <button class="ai-btn" style="margin-left:8px" onclick="aiPolishMinute()">🪄 AI校正</button></label><textarea id="mn_content" rows="6"></textarea>
-        <span class="hint" id="mn_aiHint"></span></div>
+      <div class="field full"><label>内容
+          <span class="seg" style="margin-left:6px"><button type="button" class="seg-btn" data-sec="tax" onclick="switchMnSection('tax')">税務論点</button><button type="button" class="seg-btn" data-sec="chat" onclick="switchMnSection('chat')">世間話</button><button type="button" class="seg-btn" data-sec="todo" onclick="switchMnSection('todo')">TODO</button></span>
+          <button class="ai-btn" style="margin-left:8px" onclick="aiPolishMinute()">🪄 AI校正</button></label>
+        <textarea id="mn_sectionInput" rows="7"></textarea>
+        <span class="hint" id="mn_aiHint">分類ボタンで「税務論点／世間話／TODO」を切替えて記入します。AI校正は選択中の分類を整えます。</span></div>
       <div class="field full"><label>決定事項・next action</label><textarea id="mn_actions" rows="3"></textarea></div>
     </div></div>
   <div class="modal-foot"><button class="text" onclick="closeModal('minuteModal')">キャンセル</button><button class="primary" onclick="saveMinute()">保存</button></div>
@@ -1067,15 +1073,18 @@ async function callAI(system,user,maxTokens){
   const j=await res.json();
   return (j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
 }
+const MN_SEC_GUIDE={ tax:'これは「税務論点」の議事メモです。税務・会計上の論点、判断、根拠、検討事項が明確になるように整理してください。',
+  chat:'これは「世間話」の議事メモです。顧問先との関係構築に役立つ雑談・近況・人柄に関する情報を、要点が分かるよう簡潔に整理してください。',
+  todo:'これは「TODO」の議事メモです。やるべきこと・宿題・期限・担当を、実行しやすいタスクの箇条書きに整理してください。' };
 async function aiPolishMinute(){
-  const content=val('mn_content'); const hint=document.getElementById('mn_aiHint');
-  if(!content){ toast('内容を入力してください','err'); return; }
-  hint.textContent='AIが校正しています…';
+  const ta=document.getElementById('mn_sectionInput'); const content=ta.value.trim(); const hint=document.getElementById('mn_aiHint');
+  if(!content){ toast('選択中の分類に内容を入力してください','err'); return; }
+  hint.textContent='AIが「'+MN_SECTIONS[mnSection]+'」を校正しています…';
   try{
     const out=await callAI(
-      'あなたは税理士事務所のアシスタントです。会議の議事メモを、要点が明確で読みやすい議事録に整えます。事実は変えず、内容を簡潔な箇条書きと短い段落でまとめ、決定事項や次のアクションがあれば明記してください。出力は日本語の本文のみ。',
-      '次の議事メモを読みやすい議事録に校正してください。\n\n'+content, 1800);
-    setVal('mn_content',out); hint.textContent='AIで校正しました。必要に応じて修正のうえ保存してください。'; toast('AI校正が完了しました','ok');
+      'あなたは税理士事務所のアシスタントです。会議の議事メモを、事実を変えずに要点が明確で読みやすい議事録に整えます。簡潔な箇条書きと短い段落で。日本語の本文のみ出力。'+MN_SEC_GUIDE[mnSection],
+      `次の「${MN_SECTIONS[mnSection]}」の議事メモを校正してください。\n\n`+content, 1500);
+    ta.value=out; mnSections[mnSection]=out; hint.textContent='「'+MN_SECTIONS[mnSection]+'」をAI校正しました。'; toast('AI校正が完了しました','ok');
   }catch(e){ hint.textContent=''; toast(e.message,'err'); }
 }
 
@@ -1105,10 +1114,11 @@ async function aiSummarizeFY(cid,encKey){
   const boxId='sum_'+btoa(unescape(encodeURIComponent(key))).replace(/=/g,''); const box=document.getElementById(boxId);
   if(box)box.innerHTML='<div class="muted" style="font-size:13px">AIがまとめています…</div>';
   try{
-    const body=arr.map(m=>`【${m.date} ${m.title}】\n出席者: ${m.attendees||''}\n内容:\n${m.content||''}\n決定事項・next action:\n${m.actions||''}`).join('\n\n----\n\n');
+    const body=arr.map(m=>{ const parts=[`【${m.date}${m.title?' '+m.title:''}】`]; if(m.attendees)parts.push('出席者: '+m.attendees);
+      if(m.tax||m.content)parts.push('[税務論点]\n'+(m.tax||m.content||'')); if(m.chat)parts.push('[世間話]\n'+m.chat); if(m.todo)parts.push('[TODO]\n'+m.todo); if(m.actions)parts.push('[決定事項・next action]\n'+m.actions); return parts.join('\n'); }).join('\n\n----\n\n');
     const out=await callAI(
-      'あなたは経験豊富な税理士です。顧問先の当事業年度の議事録一覧を読み、決算・申告時に確認すべき観点でまとめます。重要な決定事項、会計・税務に影響する事項（設備投資、役員報酬、借入、特別損益、税制特例の適用など）、継続検討事項・宿題を、漏れなく簡潔な箇条書きで整理してください。決算時のチェックに使える実用的なまとめにし、日本語の本文のみを出力してください。',
-      `顧問先「${c.name}」の${key}の議事録です。決算時に踏まえるべき内容をまとめてください。\n\n${body}`, 2000);
+      'あなたは経験豊富な税理士です。顧問先の当事業年度の議事録一覧（各メモは「税務論点」「世間話」「TODO」に分類されています）を読み、決算・申告時に確認すべき観点でまとめます。出力は次の3見出しで整理してください：\n■税務論点（会計・税務に影響する事項：設備投資・役員報酬・借入・特別損益・税制特例の適用など、決定事項と継続検討事項）\n■TODO（未了の宿題・依頼事項・期限）\n■世間話・関係メモ（面談で把握した近況や留意点を簡潔に）\n各見出しは簡潔な箇条書きで、決算時のチェックに使える実用的なまとめにしてください。日本語の本文のみを出力。',
+      `顧問先「${c.name}」の${key}の議事録です。決算時に踏まえるべき内容を上記の3分類でまとめてください。\n\n${body}`, 2000);
     if(!data.clientSummaries[cid])data.clientSummaries[cid]={};
     data.clientSummaries[cid][key]={text:out,at:todayISO()}; persist(); renderSummaryBody(cid); toast('まとめを生成しました','ok');
   }catch(e){ if(box)box.innerHTML=''; renderSummaryBody(cid); toast(e.message,'err'); }
@@ -1279,23 +1289,32 @@ async function generateDocsPDFs(id){ const t=cTable('docs',id); const cs=resolve
     toast(`${cs.length}社分のPDFを作成しました`,'ok'); }catch(e){ console.error(e); toast('PDF作成エラー: '+e.message,'err'); } }
 
 /* ===== 議事録 ===== */
+function minuteText(m){ return [m.tax?'【税務論点】'+m.tax:'',m.chat?'【世間話】'+m.chat:'',m.todo?'【TODO】'+m.todo:'',(!m.tax&&!m.chat&&!m.todo&&m.content)?m.content:''].filter(Boolean).join('　'); }
 function renderMinutes(){ const fc=document.getElementById('minFilterClient').value; const q=(document.getElementById('minSearch').value||'').toLowerCase();
-  let list=data.minutes.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')); if(fc)list=list.filter(m=>m.clientId===fc); if(q)list=list.filter(m=>(m.title||'').toLowerCase().includes(q));
+  let list=data.minutes.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')); if(fc)list=list.filter(m=>m.clientId===fc); if(q)list=list.filter(m=>((m.title||'')+minuteText(m)).toLowerCase().includes(q));
   const el=document.getElementById('minuteTable');
   if(!list.length){ el.innerHTML='<div class="empty"><div class="big">📝</div>議事録がありません。「＋ 議事録作成」から追加してください。</div>'; return; }
   el.innerHTML=`<table><thead><tr><th>日付</th><th>顧問先</th><th>件名</th><th>議事内容</th><th></th></tr></thead><tbody>`+
-    list.map(m=>`<tr><td>${esc(m.date||'')}</td><td>${esc(clientName(m.clientId))}</td><td><a class="link" onclick="openMinuteModal('${m.id}')">${esc(m.title)}</a></td>
-      <td class="muted" style="white-space:normal;max-width:420px">${esc(short(m.content,60))}</td>
+    list.map(m=>`<tr><td>${esc(m.date||'')}</td><td>${esc(clientName(m.clientId))}</td><td><a class="link" onclick="openMinuteModal('${m.id}')">${esc(m.title||'(無題)')}</a></td>
+      <td class="muted" style="white-space:normal;max-width:420px">${esc(short(minuteText(m),70))}</td>
       <td class="actions"><button class="text sm" onclick="openMinuteModal('${m.id}')">編集</button><button class="text sm danger" onclick="deleteMinute('${m.id}')">削除</button></td></tr>`).join('')+`</tbody></table>`; }
+const MN_SECTIONS={tax:'税務論点',chat:'世間話',todo:'TODO'};
+let mnSection='tax', mnSections={tax:'',chat:'',todo:''};
+function switchMnSection(sec){ mnSections[mnSection]=document.getElementById('mn_sectionInput').value; mnSection=sec;
+  document.querySelectorAll('#minuteModal .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.sec===sec));
+  document.getElementById('mn_sectionInput').value=mnSections[sec]||''; document.getElementById('mn_sectionInput').focus(); }
 function openMinuteModal(id){ if(!data.clients.length){ toast('先に顧問先を登録してください','err'); return; } document.getElementById('minuteModalTitle').textContent=id?'議事録編集':'議事録作成'; const m=id?data.minutes.find(x=>x.id===id):{};
-  setVal('mn_id',m.id||''); setVal('mn_client',m.clientId||''); setVal('mn_date',m.date||todayISO()); setVal('mn_title',m.title); setVal('mn_attendees',m.attendees); setVal('mn_content',m.content); setVal('mn_actions',m.actions); openModal('minuteModal'); }
-function saveMinute(){ if(!val('mn_client')){ toast('顧問先を選択してください','err'); return; } if(!val('mn_date')){ toast('日付を入力してください','err'); return; } if(!val('mn_title')){ toast('件名を入力してください','err'); return; }
-  const id=val('mn_id'); const o={clientId:val('mn_client'),date:val('mn_date'),title:val('mn_title'),attendees:val('mn_attendees'),content:val('mn_content'),actions:val('mn_actions')};
+  setVal('mn_id',m.id||''); setVal('mn_client',m.clientId||''); setVal('mn_date',m.date||todayISO()); setVal('mn_title',m.title); setVal('mn_attendees',m.attendees); setVal('mn_actions',m.actions);
+  mnSections={tax:m.tax||(m.content&&!m.chat&&!m.todo?m.content:'')||'',chat:m.chat||'',todo:m.todo||''}; mnSection='tax'; switchMnSection('tax');
+  document.getElementById('mn_aiHint').textContent='分類ボタンで「税務論点／世間話／TODO」を切替えて記入します。AI校正は選択中の分類を整えます。'; openModal('minuteModal'); }
+function saveMinute(){ if(!val('mn_client')){ toast('顧問先を選択してください','err'); return; } if(!val('mn_date')){ toast('日付を入力してください','err'); return; }
+  mnSections[mnSection]=document.getElementById('mn_sectionInput').value;
+  const id=val('mn_id'); const o={clientId:val('mn_client'),date:val('mn_date'),title:val('mn_title'),attendees:val('mn_attendees'),tax:mnSections.tax,chat:mnSections.chat,todo:mnSections.todo,actions:val('mn_actions')};
   if(id)Object.assign(data.minutes.find(x=>x.id===id),o); else { o.id=uid(); data.minutes.push(o); } persist(); refreshAll(); closeModal('minuteModal'); toast('保存しました','ok'); }
 function deleteMinute(id){ if(!confirm('この議事録を削除しますか？'))return; data.minutes=data.minutes.filter(x=>x.id!==id); persist(); refreshAll(); toast('削除しました','ok'); }
 function exportMinutes(){ if(!data.minutes.length){ toast('出力する議事録がありません','err'); return; }
-  const rows=data.minutes.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(m=>({'日付':m.date,'顧問先':clientName(m.clientId),'件名':m.title,'出席者':m.attendees,'内容':m.content,'決定事項・next action':m.actions}));
-  const ws=XLSX.utils.json_to_sheet(rows); ws['!cols']=[{wch:12},{wch:20},{wch:24},{wch:18},{wch:50},{wch:40}]; const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'議事録'); XLSX.writeFile(wb,`議事録_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
+  const rows=data.minutes.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(m=>({'日付':m.date,'顧問先':clientName(m.clientId),'件名':m.title,'出席者':m.attendees,'税務論点':m.tax||m.content||'','世間話':m.chat||'','TODO':m.todo||'','決定事項・next action':m.actions}));
+  const ws=XLSX.utils.json_to_sheet(rows); ws['!cols']=[{wch:12},{wch:20},{wch:20},{wch:16},{wch:44},{wch:30},{wch:30},{wch:30}]; const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'議事録'); XLSX.writeFile(wb,`議事録_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
 
 /* ===== 設定/バックアップ ===== */
 function todayStr(){ const d=new Date(); return d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2); }
