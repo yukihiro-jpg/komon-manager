@@ -117,8 +117,8 @@
   .row-flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
   .muted{color:var(--muted);}
   details.help summary{cursor:pointer;font-weight:500;color:var(--blue);padding:6px 0;}
-  .grid-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);background:#fff;}
-  .hscroll-top{overflow-x:auto;overflow-y:hidden;margin-bottom:2px;scrollbar-color:var(--blue) #e8eaed;}
+  .grid-wrap{overflow:auto;max-height:calc(100vh - 200px);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);background:#fff;}
+  .hscroll-top{position:sticky;top:0;z-index:6;overflow-x:auto;overflow-y:hidden;margin-bottom:2px;scrollbar-color:var(--blue) #e8eaed;}
   .hscroll-top .hscroll-inner{height:1px;}
   .hscroll-top::-webkit-scrollbar{height:12px;} .hscroll-top::-webkit-scrollbar-track{background:#e8eaed;border-radius:6px;}
   .hscroll-top::-webkit-scrollbar-thumb{background:var(--blue);border-radius:6px;border:2px solid #e8eaed;}
@@ -127,8 +127,9 @@
   .grid-wrap::-webkit-scrollbar-thumb{background:var(--blue);border-radius:6px;border:2px solid #e8eaed;}
   table.grid{font-size:13px;} table.grid th,table.grid td{border:1px solid var(--line);padding:8px 10px;text-align:center;}
   table.grid th.step{min-width:84px;} table.grid th .due{display:block;font-size:11px;color:var(--blue);font-weight:600;margin-top:3px;}
+  table.grid thead th{position:sticky;top:0;z-index:3;background:#fafbfc;}
   table.grid td.name{text-align:left;white-space:nowrap;position:sticky;left:0;background:#fff;z-index:2;}
-  table.grid th.name{position:sticky;left:0;background:#fafbfc;z-index:3;text-align:left;}
+  table.grid th.name{position:sticky;left:0;top:0;background:#fafbfc;z-index:5;text-align:left;}
   table.grid tbody tr:hover td,table.grid tbody tr:hover td.name{background:#f8faff;}
   .cell{cursor:pointer;border-radius:4px;padding:3px 4px;min-width:60px;display:inline-block;}
   .cell.done{color:var(--green);font-weight:600;} .cell.todo{color:var(--muted);} .cell.over{color:var(--danger);font-weight:600;} .cell.na{color:#9aa0a6;font-style:italic;}
@@ -385,7 +386,7 @@
 </div></div>
 
 <!-- 議事録モーダル -->
-<div class="modal-bg" id="minuteModal"><div class="modal">
+<div class="modal-bg" id="minuteModal"><div class="modal" style="max-width:min(1280px,96vw)">
   <div class="modal-head"><h3 id="minuteModalTitle">議事録</h3><button class="icon x" onclick="closeModal('minuteModal')">✕</button></div>
   <div class="modal-body"><input type="hidden" id="mn_id">
     <div class="form-grid">
@@ -1079,15 +1080,16 @@ async function callAI(system,user,maxTokens){
 const MN_SEC_GUIDE={ tax:'これは「税務論点」の議事メモです。税務・会計上の論点、判断、根拠、検討事項が明確になるように整理してください。',
   chat:'これは「世間話」の議事メモです。顧問先との関係構築に役立つ雑談・近況・人柄に関する情報を、要点が分かるよう簡潔に整理してください。',
   todo:'これは「TODO」の議事メモです。やるべきこと・宿題・期限・担当を、実行しやすいタスクの箇条書きに整理してください。' };
-async function aiPolishMinute(){
-  const ta=document.getElementById('mn_sectionInput'); const content=ta.value.trim(); const hint=document.getElementById('mn_aiHint');
-  if(!content){ toast('選択中の分類に内容を入力してください','err'); return; }
-  hint.textContent='AIが「'+MN_SECTIONS[mnSection]+'」を校正しています…';
+const POLISH_SYS='あなたは税理士事務所のアシスタントです。会議の議事メモを、事実を変えずに要点が明確で読みやすい議事録に整えます。【出力規則】Markdown記号（#, *, -, **, _, |, --- など）は一切使用しないこと。見出しは「■」、箇条書きは全角中黒「・」、番号付けは「1. 2. 3.」を用い、日本語のプレーンテキストのみで簡潔に出力します。表は使わず箇条書きにします。';
+async function aiPolishMinute(){ const hint=document.getElementById('mn_aiHint');
+  mnSections[mnSection]=document.getElementById('mn_sectionInput').value;
+  const targets=Object.keys(MN_SECTIONS).filter(s=>(mnSections[s]||'').trim());
+  if(!targets.length){ toast('内容を入力してください','err'); return; }
+  hint.textContent='AIが校正しています…（税務論点・世間話・TODO）';
   try{
-    const out=await callAI(
-      'あなたは税理士事務所のアシスタントです。会議の議事メモを、事実を変えずに要点が明確で読みやすい議事録に整えます。簡潔な箇条書きと短い段落で。日本語の本文のみ出力。'+MN_SEC_GUIDE[mnSection],
-      `次の「${MN_SECTIONS[mnSection]}」の議事メモを校正してください。\n\n`+content, 1500);
-    ta.value=out; mnSections[mnSection]=out; hint.textContent='「'+MN_SECTIONS[mnSection]+'」をAI校正しました。'; toast('AI校正が完了しました','ok');
+    for(const s of targets){ const out=await callAI(POLISH_SYS+MN_SEC_GUIDE[s], `次の「${MN_SECTIONS[s]}」の議事メモを校正してください。\n\n`+mnSections[s], 1500); mnSections[s]=out; }
+    document.getElementById('mn_sectionInput').value=mnSections[mnSection]||'';
+    hint.textContent='税務論点・世間話・TODOをまとめてAI校正しました。各分類ボタンで結果を確認できます。'; toast('AI校正が完了しました','ok');
   }catch(e){ hint.textContent=''; toast(e.message,'err'); }
 }
 
@@ -1120,7 +1122,7 @@ async function aiSummarizeFY(cid,encKey){
     const body=arr.map(m=>{ const parts=[`【${m.date}${m.title?' '+m.title:''}】`]; if(m.attendees)parts.push('出席者: '+m.attendees);
       if(m.tax||m.content)parts.push('[税務論点]\n'+(m.tax||m.content||'')); if(m.chat)parts.push('[世間話]\n'+m.chat); if(m.todo)parts.push('[TODO]\n'+m.todo); if(m.actions)parts.push('[決定事項・next action]\n'+m.actions); return parts.join('\n'); }).join('\n\n----\n\n');
     const out=await callAI(
-      'あなたは経験豊富な税理士です。顧問先の当事業年度の議事録一覧（各メモは「税務論点」「世間話」「TODO」に分類されています）を読み、決算・申告時に確認すべき観点でまとめます。出力は次の3見出しで整理してください：\n■税務論点（会計・税務に影響する事項：設備投資・役員報酬・借入・特別損益・税制特例の適用など、決定事項と継続検討事項）\n■TODO（未了の宿題・依頼事項・期限）\n■世間話・関係メモ（面談で把握した近況や留意点を簡潔に）\n各見出しは簡潔な箇条書きで、決算時のチェックに使える実用的なまとめにしてください。日本語の本文のみを出力。',
+      'あなたは経験豊富な税理士です。顧問先の当事業年度の議事録一覧（各メモは「税務論点」「世間話」「TODO」に分類）を読み、決算・申告時に確認すべき観点でまとめます。出力は次の3見出しで整理：\n■税務論点（会計・税務に影響する事項：設備投資・役員報酬・借入・特別損益・税制特例の適用など、決定事項と継続検討事項）\n■TODO（未了の宿題・依頼事項・期限）\n■世間話・関係メモ（面談で把握した近況や留意点を簡潔に）\n【出力規則】Markdown記号（#, *, -, **, |, --- など）は一切使わず、箇条書きは全角中黒「・」、番号は「1. 2.」を用い、日本語のプレーンテキストのみで簡潔に出力。',
       `顧問先「${c.name}」の${key}の議事録です。決算時に踏まえるべき内容を上記の3分類でまとめてください。\n\n${body}`, 2000);
     if(!data.clientSummaries[cid])data.clientSummaries[cid]={};
     data.clientSummaries[cid][key]={text:out,at:todayISO()}; persist(); renderSummaryBody(cid); toast('まとめを生成しました','ok');
