@@ -128,6 +128,8 @@
   table.grid{font-size:13px;} table.grid th,table.grid td{border:1px solid var(--line);padding:8px 10px;text-align:center;}
   table.grid th.step{min-width:84px;} table.grid th .due{display:block;font-size:11px;color:var(--blue);font-weight:600;margin-top:3px;}
   table.grid thead th{position:sticky;top:0;z-index:3;background:#fafbfc;}
+  table.grid .spacer{min-width:20px;width:20px;border:none!important;background:#fff;padding:0;}
+  table.grid thead th.spacer{background:#fafbfc;}
   table.grid td.name{text-align:left;white-space:nowrap;position:sticky;left:0;background:#fff;z-index:2;}
   table.grid th.name{position:sticky;left:0;top:0;background:#fafbfc;z-index:5;text-align:left;}
   table.grid tbody tr:hover td,table.grid tbody tr:hover td.name{background:#f8faff;}
@@ -414,7 +416,7 @@
   <div class="modal-foot"><button class="text" onclick="closeModal('summaryModal')">閉じる</button></div>
 </div></div>
 
-<div id="cellPop"><div class="row"><button class="sm" onclick="cellPopSet('対象外')">対象外</button><button class="sm" onclick="cellPopSet('')">クリア</button></div><input type="date" id="cellPopDate"></div>
+<div id="cellPop"><div class="row"><button class="sm" onclick="cellPopSet('対象外')">対象外</button><button class="sm" onclick="cellPopSet(todayISO())">今日</button><button class="sm" onclick="cellPopSet('')">クリア</button></div><input type="date" id="cellPopDate"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -511,7 +513,12 @@ function enhanceGrid(table,key){ if(!table||!table.tHead)return; addTopScroll(ta
     if(isProg){ const f=document.createElement('span'); f.className='flt'; f.textContent=' ▾'; f.title='絞り込み（完了/未了/対象外）';
       f.style.color=(st.colFilter[i]&&st.colFilter[i]!=='all')?'var(--blue)':'var(--muted)';
       f.addEventListener('click',ev=>{ ev.stopPropagation(); openFilterMenu(ev,table,key,i); }); th.appendChild(f); } });
-  enhanceArrows(table,key); applyGridSort(table,key); applyGridFilters(table,key); }
+  enhanceArrows(table,key); applyGridSort(table,key); applyGridFilters(table,key); addGridSpacer(table); }
+function addGridSpacer(table){ // 右端が縦スクロールバーに隠れないよう余白列を付与
+  const mk=()=>{ const e=document.createElement('th'); e.className='spacer'; return e; };
+  if(table.tHead&&table.tHead.rows[0]&&!table.tHead.rows[0].querySelector('.spacer'))table.tHead.rows[0].appendChild(mk());
+  if(table.tBodies[0])[...table.tBodies[0].rows].forEach(r=>{ const td=document.createElement('td'); td.className='spacer'; r.appendChild(td); });
+  if(table.tFoot&&table.tFoot.rows[0]){ const td=document.createElement('td'); td.className='spacer'; table.tFoot.rows[0].appendChild(td); } }
 function enhanceArrows(table,key){ const st=gridStates[key]; const headRow=table.tHead.rows[0];
   [...headRow.cells].forEach((th,i)=>{ const old=th.querySelector('.sort-ar'); if(old)old.remove(); if(st.sort&&st.sort.i===i){ const a=document.createElement('span'); a.className='sort-ar'; a.textContent=st.sort.dir>0?' ▲':' ▼'; a.style.color='var(--blue)'; th.appendChild(a); } }); }
 function openFilterMenu(ev,table,key,i){ const st=gridStates[key]; let menu=document.getElementById('fltMenu'); if(!menu){ menu=document.createElement('div'); menu.id='fltMenu'; document.body.appendChild(menu); } menu.className='flt-menu';
@@ -802,7 +809,7 @@ function renderInterimOverview(){
       <div class="s">${rows.length}件${rows.length?` ／ 完了 ${done}/${rows.length}`:''}</div></div>`; }
   html+=`</div>`; document.getElementById('interimView').innerHTML=html;
 }
-const INTERIM_FIXED=[{k:'code',label:'コード'},{k:'name',label:'顧問先'},{k:'fiscal',label:'決算'},
+const INTERIM_FIXED=[{k:'name',label:'顧問先'},{k:'fiscal',label:'決算'},
   {k:'corp',label:'法人税',num:1},{k:'localCorp',label:'地方法人税',num:1},{k:'kenmin',label:'県民税',num:1},
   {k:'jigyo',label:'事業税',num:1},{k:'shi',label:'市税',num:1},{k:'cons',label:'消費税',num:1},
   {k:'consLabel',label:'消費税回'},{k:'total',label:'合計額',num:1},{k:'payMethod',label:'納付方法'}];
@@ -813,7 +820,7 @@ function editInterimCell(e,cid,encStep){ const step=decodeURIComponent(encStep);
   openCellEditor(e,cur,v=>{ if(!data.interimCells[k])data.interimCells[k]={}; if(v)data.interimCells[k][step]=v; else delete data.interimCells[k][step]; persist(); renderInterimDetail(); }); }
 function interimFixedCell(col,c,ev){ switch(col.k){
   case 'code': return `<td>${esc(c.code||'')}</td>`;
-  case 'name': return `<td><a class="link" onclick="openClientModal('${c.id}')">${esc(c.name)}</a></td>`;
+  case 'name': return `<td class="name">${clientLink(c)}</td>`;
   case 'fiscal': return `<td>${fiscalMonthNum(c.fiscal)}月</td>`;
   case 'consLabel': return `<td>${ev.consLabel?ev.consLabel+'回目':'－'}</td>`;
   case 'payMethod': return `<td>${c.payMethod?`<span class="chip ${c.payMethod==='ダイレクト納付'?'blue':'gray'}">${esc(c.payMethod)}</span>`:'－'}</td>`;
@@ -825,7 +832,7 @@ function renderInterimDetail(){ const CY=interimYear, CM=interimMonth; const row
     <div class="toolbar"><button onclick="openInterimSteps()">⚙ 工程を編集</button><button onclick="exportInterimMonth()">📤 Excel出力</button></div></div>
     <div class="hint" style="margin-bottom:14px">この月（${CY}年${CM}月）に中間申告・納付期限が到来する顧問先です（決算月に関係なく集計）。納付方法と完了の間の工程は「工程を編集」で追加・修正・削除できます。</div>`;
   if(!rows.length){ html+=`<div class="card"><div class="empty"><div class="big">🗓</div>${CY}年${CM}月に納付期限が到来する中間申告はありません。</div></div>`; document.getElementById('interimView').innerHTML=html; return; }
-  let head=`<tr>`+INTERIM_FIXED.map(col=>`<th style="${col.num?'text-align:right':''}">${col.label}</th>`).join('')+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`<th>完了</th></tr>`;
+  let head=`<tr>`+INTERIM_FIXED.map(col=>`<th class="${col.k==='name'?'name':''}" style="${col.num?'text-align:right':''}">${col.label}</th>`).join('')+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`<th>完了</th></tr>`;
   let body=rows.map(({client:c,ev})=>{ const done=!!data.interimDone[interimKey(CY,CM,c.id)]; const cells=data.interimCells[interimKey(CY,CM,c.id)]||{};
     let row=INTERIM_FIXED.map(col=>interimFixedCell(col,c,ev)).join('');
     row+=steps.map(s=>{ const v=cells[s.name]; let cls='todo',txt='－'; if(v==='対象外'){cls='na';txt='対象外';} else if(v){cls='done';txt=fmtMD(v);} else if(s.due){cls=(new Date(s.due)<today)?'over':'todo';txt='未('+fmtMD(s.due)+')';}
@@ -833,18 +840,18 @@ function renderInterimDetail(){ const CY=interimYear, CM=interimMonth; const row
     row+=`<td style="text-align:center"><input type="checkbox" style="width:auto" ${done?'checked':''} onchange="toggleInterimDone('${c.id}',this.checked)"></td>`;
     return `<tr style="${done?'opacity:.6':''}">${row}</tr>`; }).join('');
   const sum=k=>rows.reduce((s,r)=>s+r.ev[k],0);
-  let foot=`<tr style="background:#fafbfc;font-weight:600">`+INTERIM_FIXED.map((col,i)=>{ if(col.num)return `<td class="yen" style="text-align:right">${yen(sum(col.k))}</td>`; return `<td>${i===1?'合計':''}</td>`; }).join('')+steps.map(()=>'<td></td>').join('')+`<td></td></tr>`;
+  let foot=`<tr style="background:#fafbfc;font-weight:600">`+INTERIM_FIXED.map((col,i)=>{ if(col.num)return `<td class="yen" style="text-align:right">${yen(sum(col.k))}</td>`; return `<td class="${col.k==='name'?'name':''}">${i===0?'合計':''}</td>`; }).join('')+steps.map(()=>'<td></td>').join('')+`<td></td></tr>`;
   html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>`;
   document.getElementById('interimView').innerHTML=html;
   enhanceGrid(document.querySelector('#interimView table.grid'),'interim'+CY+'-'+CM);
 }
 function toggleInterimDone(cid,checked){ const key=interimKey(interimYear,interimMonth,cid); if(checked)data.interimDone[key]=true; else delete data.interimDone[key]; persist(); renderInterimDetail(); }
 function exportInterimMonth(){ const CY=interimYear, CM=interimMonth; const rows=interimRows(CY,CM); const steps=getInterimSteps();
-  const head=[...INTERIM_FIXED.map(c=>c.label),...steps.map(s=>s.name),'完了']; const aoa=[head];
+  const head=['コード',...INTERIM_FIXED.map(c=>c.label),...steps.map(s=>s.name),'完了']; const aoa=[head];
   rows.forEach(({client:c,ev})=>{ const done=!!data.interimDone[interimKey(CY,CM,c.id)]; const cells=data.interimCells[interimKey(CY,CM,c.id)]||{};
-    const fx=INTERIM_FIXED.map(col=>{ switch(col.k){ case 'code':return c.code||''; case 'name':return c.name; case 'fiscal':return fiscalMonthNum(c.fiscal)+'月'; case 'consLabel':return ev.consLabel?ev.consLabel+'回目':''; case 'payMethod':return c.payMethod||''; default:return ev[col.k]; } });
+    const fx=INTERIM_FIXED.map(col=>{ switch(col.k){ case 'name':return c.name; case 'fiscal':return fiscalMonthNum(c.fiscal)+'月'; case 'consLabel':return ev.consLabel?ev.consLabel+'回目':''; case 'payMethod':return c.payMethod||''; default:return ev[col.k]; } });
     const st=steps.map(s=>{ const v=cells[s.name]; return v==='対象外'?'対象外':(v?fmtMD(v):''); });
-    aoa.push([...fx,...st,done?'完了':'']); });
+    aoa.push([c.code||'',...fx,...st,done?'完了':'']); });
   const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,`${CY}年${CM}月中間`);
   XLSX.writeFile(wb,`${CY}年${CM}月中間申告_${todayStr()}.xlsx`); toast('Excelを出力しました','ok'); }
 
