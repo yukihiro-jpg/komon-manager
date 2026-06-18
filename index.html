@@ -395,6 +395,9 @@
     <div class="field full" style="margin-bottom:14px"><label>対象の列</label><select id="bulk_col"></select></div>
     <div class="field full" style="margin-bottom:14px"><label>登録する値</label><select id="bulk_val" onchange="onBulkValChange()"></select></div>
     <div class="field full" id="bulk_dateWrap" style="display:none;margin-bottom:14px"><label>指定日</label><input type="date" id="bulk_date"></div>
+    <div class="field full" style="margin-bottom:10px"><label>対象の顧問先（作業した社だけを選択）</label>
+      <div class="row-flex" style="margin-bottom:6px"><input id="bulk_cliSearch" class="search" placeholder="🔍 顧問先で絞り込み" style="max-width:220px" oninput="filterBulkClients()"><button class="sm" onclick="bulkSelectAll(true)">全選択</button><button class="sm" onclick="bulkSelectAll(false)">全解除</button><span class="muted" id="bulk_cliCount" style="font-size:12px"></span></div>
+      <div class="add-row-list" id="bulk_clients" style="max-height:240px"></div></div>
     <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="bulk_onlyEmpty" style="width:auto"> 未入力のセルだけに登録（既存の値は上書きしない）</label>
   </div>
   <div class="modal-foot"><button class="text" onclick="closeModal('bulkModal')">キャンセル</button><button class="primary" onclick="applyBulk()">適用</button></div>
@@ -541,13 +544,21 @@ function openBulk(){ if(!gridBulk||!gridBulk.cols.length||!gridBulk.cids.length)
   document.getElementById('bulk_col').innerHTML=`<option value="__ALL__">すべての${gridBulk.colWord||'工程'}列</option>`+gridBulk.cols.map(c=>`<option value="${esc(c.name)}">${esc(c.label||c.name)}</option>`).join('');
   const docs=gridBulk.valueType==='docstatus';
   document.getElementById('bulk_val').innerHTML=docs?`<option value="done">回収済</option><option value="clear">未回収（クリア）</option>`:`<option value="today">今日</option><option value="na">対象外</option><option value="date">指定日</option><option value="clear">クリア</option>`;
+  const cls=gridBulk.cids.map(id=>clientById(id)).filter(Boolean);
+  document.getElementById('bulk_clients').innerHTML=cls.map(c=>`<label><input type="checkbox" class="bulk_cli" value="${c.id}" checked style="width:auto" onchange="updateBulkCount()"> <b>${esc(c.code||'')}</b> ${esc(c.name)}</label>`).join('');
+  setVal('bulk_cliSearch',''); filterBulkClients(); updateBulkCount();
   document.getElementById('bulk_onlyEmpty').checked=false; onBulkValChange(); openModal('bulkModal'); }
+function filterBulkClients(){ const q=(val('bulk_cliSearch')||'').toLowerCase(); document.querySelectorAll('#bulk_clients label').forEach(l=>{ l.style.display=l.textContent.toLowerCase().includes(q)?'':'none'; }); }
+function bulkSelectAll(on){ document.querySelectorAll('#bulk_clients label').forEach(l=>{ if(l.style.display!=='none')l.querySelector('input').checked=on; }); updateBulkCount(); }
+function updateBulkCount(){ const n=document.querySelectorAll('#bulk_clients .bulk_cli:checked').length; document.getElementById('bulk_cliCount').textContent='選択 '+n+'社'; }
 function onBulkValChange(){ document.getElementById('bulk_dateWrap').style.display=(val('bulk_val')==='date')?'block':'none'; }
 function applyBulk(){ if(!gridBulk)return; const vsel=val('bulk_val'); const onlyEmpty=document.getElementById('bulk_onlyEmpty').checked;
   let value; if(vsel==='today'||vsel==='done')value=todayISO(); else if(vsel==='na')value='対象外'; else if(vsel==='date'){ value=val('bulk_date'); if(!value){ toast('指定日を選択してください','err'); return; } } else value='';
+  const cids=[...document.querySelectorAll('#bulk_clients .bulk_cli:checked')].map(i=>i.value);
+  if(!cids.length){ toast('対象の顧問先を選択してください','err'); return; }
   const colSel=val('bulk_col'); const cols=colSel==='__ALL__'?gridBulk.cols.map(c=>c.name):[colSel];
-  let n=0; gridBulk.cids.forEach(cid=>{ const obj=gridBulk.get(cid); cols.forEach(name=>{ if(onlyEmpty&&obj[name])return; if(value)obj[name]=value; else delete obj[name]; n++; }); });
-  persist(); closeModal('bulkModal'); if(gridBulk.render)gridBulk.render(); toast(`${n}件に一括入力しました`,'ok'); }
+  let n=0; cids.forEach(cid=>{ const obj=gridBulk.get(cid); cols.forEach(name=>{ if(onlyEmpty&&obj[name])return; if(value)obj[name]=value; else delete obj[name]; n++; }); });
+  persist(); closeModal('bulkModal'); if(gridBulk.render)gridBulk.render(); toast(`${cids.length}社・${n}件に一括入力しました`,'ok'); }
 function enhanceArrows(table,key){ const st=gridStates[key]; const headRow=table.tHead.rows[0];
   [...headRow.cells].forEach((th,i)=>{ const old=th.querySelector('.sort-ar'); if(old)old.remove(); if(st.sort&&st.sort.i===i){ const a=document.createElement('span'); a.className='sort-ar'; a.textContent=st.sort.dir>0?' ▲':' ▼'; a.style.color='var(--blue)'; th.appendChild(a); } }); }
 function openFilterMenu(ev,table,key,i){ const st=gridStates[key]; let menu=document.getElementById('fltMenu'); if(!menu){ menu=document.createElement('div'); menu.id='fltMenu'; document.body.appendChild(menu); } menu.className='flt-menu';
