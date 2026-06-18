@@ -98,6 +98,8 @@
   .modal-body{padding:0 24px 8px;max-height:68vh;overflow-y:auto;}
   .modal-foot{padding:16px 24px;display:flex;justify-content:flex-end;gap:10px;}
   .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .form-grid.g3{grid-template-columns:1fr 1fr 1fr;}
+  @media(max-width:760px){ .form-grid.g3{grid-template-columns:1fr 1fr;} }
   .field{display:flex;flex-direction:column;gap:6px;} .field.full{grid-column:1 / -1;}
   .field label{font-size:12px;color:var(--muted);font-weight:500;}
   .req:after{content:" *";color:var(--danger);}
@@ -276,10 +278,10 @@
 </main>
 
 <!-- 顧問先モーダル -->
-<div class="modal-bg" id="clientModal"><div class="modal">
+<div class="modal-bg" id="clientModal"><div class="modal xwide">
   <div class="modal-head"><h3 id="clientModalTitle">顧問先登録</h3><button class="icon x" onclick="closeModal('clientModal')">✕</button></div>
   <div class="modal-body"><input type="hidden" id="cl_id">
-    <div class="form-grid">
+    <div class="form-grid g3">
       <div class="field"><label class="req">顧問先名</label><input id="cl_name"></div>
       <div class="field"><label>フリガナ</label><input id="cl_kana"></div>
       <div class="field"><label>顧問先コード</label><input id="cl_code"></div>
@@ -438,6 +440,7 @@ function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;
 function short(s,n){ s=String(s||''); return s.length>n?s.slice(0,n)+'…':s; }
 function clientById(id){ return data.clients.find(x=>x.id===id); }
 function clientName(id){ const c=clientById(id); return c?c.name:'(不明)'; }
+function clientLink(c){ return `<b>${esc(c.code||'')}</b> <a class="link" onclick="openClientModal('${c.id}')">${esc(c.name)}</a>`; }
 function yen(n){ return (n||0).toLocaleString('ja-JP')+'円'; }
 const MONTHS=[...Array(12)].map((_,i)=>(i+1)+'月');
 function wareki(y){ if(y>=2019)return '令和'+(y-2018)+'年'; if(y>=1989)return '平成'+(y-1988)+'年'; return y+'年'; }
@@ -688,7 +691,7 @@ function renderFilingDetail(){
   let head=`<tr><th class="name">顧問先</th><th>主担当者</th><th>備考</th>`+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`<th>確定法人税等</th><th>確定消費税</th><th>中間申告</th></tr>`;
   let body=cs.map(c=>{ const f=getFiling(filingYear,c.id); const tx=f.tax||{}; const res=calcInterim(tx);
     const corpTot=confirmedCorpTotal(tx), consTot=confirmedConsTotal(tx);
-    let row=`<td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td><td>${esc(c.staff||'')}</td>
+    let row=`<td class="name">${clientLink(c)}</td><td>${esc(c.staff||'')}</td>
       <td><input style="min-width:90px;padding:5px 7px" value="${esc(f.note||'')}" onchange="setFilingNote('${c.id}',this.value)"></td>`;
     row+=steps.map(s=>{ const v=f.cells&&f.cells[s.name]; let cls='todo',txt='－';
       if(v==='対象外'){ cls='na'; txt='対象外'; } else if(v){ cls='done'; txt=fmtMD(v); } else if(s.due){ cls=(new Date(s.due)<today)?'over':'todo'; txt='未('+fmtMD(s.due)+')'; }
@@ -809,7 +812,7 @@ function editInterimCell(e,cid,encStep){ const step=decodeURIComponent(encStep);
   openCellEditor(e,cur,v=>{ if(!data.interimCells[k])data.interimCells[k]={}; if(v)data.interimCells[k][step]=v; else delete data.interimCells[k][step]; persist(); renderInterimDetail(); }); }
 function interimFixedCell(col,c,ev){ switch(col.k){
   case 'code': return `<td>${esc(c.code||'')}</td>`;
-  case 'name': return `<td>${esc(c.name)}</td>`;
+  case 'name': return `<td><a class="link" onclick="openClientModal('${c.id}')">${esc(c.name)}</a></td>`;
   case 'fiscal': return `<td>${fiscalMonthNum(c.fiscal)}月</td>`;
   case 'consLabel': return `<td>${ev.consLabel?ev.consLabel+'回目':'－'}</td>`;
   case 'payMethod': return `<td>${c.payMethod?`<span class="chip ${c.payMethod==='ダイレクト納付'?'blue':'gray'}">${esc(c.payMethod)}</span>`:'－'}</td>`;
@@ -869,7 +872,7 @@ function renderModule(key){
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>対象の顧問先がありません。</div></div>`; document.getElementById(key+'View').innerHTML=html; return; }
   let head=`<tr><th class="name">顧問先</th><th>主担当者</th><th>備考</th>`+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`</tr>`;
   let body=cs.map(c=>{ const r=moduleRow(key,year,c.id);
-    let row=`<td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td><td>${esc(c.staff||'')}</td><td><input style="min-width:90px;padding:5px 7px" value="${esc(r.note||'')}" onchange="setModuleNote('${key}','${c.id}',this.value)"></td>`;
+    let row=`<td class="name">${clientLink(c)}</td><td>${esc(c.staff||'')}</td><td><input style="min-width:90px;padding:5px 7px" value="${esc(r.note||'')}" onchange="setModuleNote('${key}','${c.id}',this.value)"></td>`;
     row+=steps.map(s=>{ const v=r.cells&&r.cells[s.name]; let cls='todo',txt='－'; if(v==='対象外'){ cls='na'; txt='対象外'; } else if(v){ cls='done'; txt=fmtMD(v); } else if(s.due){ cls=(new Date(s.due)<today)?'over':'todo'; txt='未('+fmtMD(s.due)+')'; }
       return `<td><span class="cell ${cls}" onclick="editModuleCell(event,'${key}','${c.id}','${encodeURIComponent(s.name)}')">${txt}</span></td>`; }).join('');
     return `<tr>${row}</tr>`; }).join('');
@@ -922,7 +925,7 @@ function renderGensenMonthlyDetail(){ const m=gensenMonth; const cs=gensenMonthl
   let head=`<tr><th class="name">顧問先名</th><th>所轄税務署</th><th>納付方法</th><th>連絡方法</th><th>給与ソフト</th><th style="text-align:right">未済繰越額</th><th style="text-align:right">当月源泉税額</th><th style="text-align:right">翌月繰越未済額</th>`+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`<th>備考</th></tr>`;
   let body=cs.map(c=>{ const r=gmPeek(gensenYear,m,c.id); const carry=gmCarry(gensenYear,m,c.id); const fwd=carry+num(r.current);
     const dcell=(s)=>{ const v=r.cells&&r.cells[s.name]; let cls='todo',txt='－'; if(v==='対象外'){cls='na';txt='対象外';} else if(v){cls='done';txt=fmtMD(v);} else if(s.due){cls=(new Date(s.due)<today)?'over':'todo';txt='未('+fmtMD(s.due)+')';} else {cls='todo';txt='未';} return `<td><span class="cell ${cls}" onclick="editGmCell(event,${m},'${c.id}','${encodeURIComponent(s.name)}')">${txt}</span></td>`; };
-    return `<tr><td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td>
+    return `<tr><td class="name">${clientLink(c)}</td>
       <td>${esc(c.taxOffice||'')}</td><td>${payChip(c)}</td><td>${esc(c.noticeMethod||'')}</td><td>${esc(c.payrollSoftware||'')}</td>
       <td class="yen" style="text-align:right" title="${m===1?'前年の年末調整 控除未済額より自動':'前月の翌月繰越未済額より自動'}">${carry?fmtAmtSigned(carry):'－'}</td>
       <td style="text-align:right">${amtInput(r.current,`setGmCurrent(${gensenYear},${m},'${c.id}',this.value)`)}</td>
@@ -947,7 +950,7 @@ function renderGensenSpecial(){ const cs=gensenSpecialClients(); const steps=get
   let head=`<tr><th class="name">顧問先名</th><th>所轄税務署</th><th>納付方法</th><th>連絡方法</th><th>給与ソフト</th><th style="text-align:right">未済繰越額</th><th style="text-align:right">源泉税額(1〜6月)</th><th style="text-align:right">翌期繰越未済額</th>`+steps.map(s=>`<th class="step">${esc(s.name)}${s.due?`<span class="due">${fmtMD(s.due)}</span>`:''}</th>`).join('')+`<th>備考</th></tr>`;
   let body=cs.map(c=>{ const r=gsPeek(gensenYear,c.id); const carry=nenchoDeduction(gensenYear,c.id); const fwd=carry+num(r.current);
     const dcell=(s)=>{ const v=r.cells&&r.cells[s.name]; let cls='todo',txt='－'; if(v==='対象外'){cls='na';txt='対象外';} else if(v){cls='done';txt=fmtMD(v);} else if(s.due){cls=(new Date(s.due)<today)?'over':'todo';txt='未('+fmtMD(s.due)+')';} else {cls='todo';txt='未';} return `<td><span class="cell ${cls}" onclick="editGsCell(event,'${c.id}','${encodeURIComponent(s.name)}')">${txt}</span></td>`; };
-    return `<tr><td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td>
+    return `<tr><td class="name">${clientLink(c)}</td>
       <td>${esc(c.taxOffice||'')}</td><td>${payChip(c)}</td><td>${esc(c.noticeMethod||'')}</td><td>${esc(c.payrollSoftware||'')}</td>
       <td class="yen" style="text-align:right" title="前年の年末調整 控除未済額より自動">${carry?fmtAmtSigned(carry):'－'}</td>
       <td style="text-align:right">${amtInput(r.current,`setGsCurrent('${c.id}',this.value)`)}</td>
@@ -990,7 +993,7 @@ function renderNencho(){
   let body=cs.map(c=>{ const r=nPeek(nenchoYear,c.id);
     const dcell=(f)=>{ const v=r[f]; let cls,txt; if(v==='対象外'){cls='na';txt='対象外';} else if(v){cls='done';txt=fmtMD(v);} else {cls='todo';txt='未';} return `<td><span class="cell ${cls}" onclick="editNenchoCell(event,'${c.id}','${f}')">${txt}</span></td>`; };
     const ded=nenchoDeductionOf(nenchoYear,c.id);
-    return `<tr><td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td>
+    return `<tr><td class="name">${clientLink(c)}</td>
       <td>${c.gensenStatus?`<span class="chip ${c.gensenStatus==='納期特例'?'amber':'pink'}">${esc(c.gensenStatus)}</span>`:''}</td><td>${payChip(c)}</td>
       <td><input style="min-width:110px;padding:5px 7px" value="${esc(r.note||'')}" onchange="setNenchoField('${c.id}','note',this.value)"></td>
       ${dcell('collect')}${dcell('payroll')}${dcell('confirm')}${dcell('send')}
@@ -1177,7 +1180,7 @@ function renderCustomDetail(kind){ const def=CUSTOM_DEFS[kind]; const t=cTable(k
   if(!cs.length){ html+=`<div class="card"><div class="empty"><div class="big">🏢</div>対象の顧問先がありません。「⚙ 編集」で対象顧問先の条件をご確認ください。</div></div>`; document.getElementById(def.view).innerHTML=html; return; }
   let head=`<tr><th class="name">顧問先</th>`+cols.map(col=>`<th class="step">${esc(col.name)}${col.due?`<span class="due">${fmtMD(col.due)}</span>`:''}</th>`).join('')+`<th>備考</th></tr>`;
   let body=cs.map(c=>{ const r=cRow(t,c.id);
-    let row=`<td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td>`;
+    let row=`<td class="name">${clientLink(c)}</td>`;
     row+=cols.map(col=>{ const v=r.cells&&r.cells[col.name]; let cls='todo',txt='－'; if(v==='対象外'){cls='na';txt='対象外';} else if(v){cls='done';txt=fmtMD(v);} else if(col.due){cls=(new Date(col.due)<today)?'over':'todo';txt='未('+fmtMD(col.due)+')';}
       return `<td><span class="cell ${cls}" onclick="editCustomCell(event,'${kind}','${t.id}','${c.id}','${encodeURIComponent(col.name)}')">${txt}</span></td>`; }).join('');
     row+=`<td><input style="min-width:120px;padding:5px 7px" value="${esc(r.note||'')}" onchange="setCustomNote('${kind}','${t.id}','${c.id}',this.value)"></td>`;
@@ -1246,7 +1249,7 @@ function renderDocsDetail(){ const t=cTable('docs',customCurrent.docs); const cs
   let body=cs.map(c=>{ let done=0; const cells=cols.map(it=>{ const ok=docStatus(t,c.id,it.name); if(ok)done++;
       return `<td><span class="cell ${ok?'done':'todo'}" style="cursor:pointer;min-width:64px" onclick="toggleDocStatus('${t.id}','${c.id}','${encodeURIComponent(it.name)}')">${ok?'回収済':'未回収'}</span></td>`; }).join('');
     const pct=cols.length?Math.round(done/cols.length*100):0;
-    return `<tr><td class="name"><b>${esc(c.code||'')}</b> ${esc(c.name)}</td>${cells}<td style="white-space:nowrap"><div class="pbar"><span style="width:${pct}%"></span></div> ${pct}%</td></tr>`; }).join('');
+    return `<tr><td class="name">${clientLink(c)}</td>${cells}<td style="white-space:nowrap"><div class="pbar"><span style="width:${pct}%"></span></div> ${pct}%</td></tr>`; }).join('');
   html+=`<div class="grid-wrap"><table class="grid" style="text-align:left"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     <div class="hint" style="margin-top:12px">※ セルをクリックで「回収済／未回収」を切替（進捗バーに反映）。所内メモはPDFには出力されません。「一括PDF作成」で顧問先1社につき1ファイルのPDFを作成します。</div>`;
   document.getElementById('docsView').innerHTML=html;
