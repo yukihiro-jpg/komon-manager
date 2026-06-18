@@ -113,6 +113,13 @@
   .muted{color:var(--muted);}
   details.help summary{cursor:pointer;font-weight:500;color:var(--blue);padding:6px 0;}
   .grid-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);background:#fff;}
+  .hscroll-top{overflow-x:auto;overflow-y:hidden;margin-bottom:2px;scrollbar-color:var(--blue) #e8eaed;}
+  .hscroll-top .hscroll-inner{height:1px;}
+  .hscroll-top::-webkit-scrollbar{height:12px;} .hscroll-top::-webkit-scrollbar-track{background:#e8eaed;border-radius:6px;}
+  .hscroll-top::-webkit-scrollbar-thumb{background:var(--blue);border-radius:6px;border:2px solid #e8eaed;}
+  .grid-wrap{scrollbar-color:var(--blue) #e8eaed;}
+  .grid-wrap::-webkit-scrollbar{height:12px;} .grid-wrap::-webkit-scrollbar-track{background:#e8eaed;}
+  .grid-wrap::-webkit-scrollbar-thumb{background:var(--blue);border-radius:6px;border:2px solid #e8eaed;}
   table.grid{font-size:13px;} table.grid th,table.grid td{border:1px solid var(--line);padding:8px 10px;text-align:center;}
   table.grid th.step{min-width:84px;} table.grid th .due{display:block;font-size:11px;color:var(--blue);font-weight:600;margin-top:3px;}
   table.grid td.name{text-align:left;white-space:nowrap;position:sticky;left:0;background:#fff;z-index:2;}
@@ -478,7 +485,15 @@ function applyGridSort(table,key){ const st=gridStates[key]; const tb=table.tBod
   const rows=[...tb.rows]; rows.sort((a,b)=>{ const x=cellSortKey(a.cells[i]),y=cellSortKey(b.cells[i]);
     if(typeof x==='number'&&typeof y==='number')return (x-y)*dir; return String(x).localeCompare(String(y),'ja')*dir; });
   rows.forEach(r=>tb.appendChild(r)); }
-function enhanceGrid(table,key){ if(!table||!table.tHead)return; const st=gridStates[key]||(gridStates[key]={sort:null,colFilter:{}}); if(!st.colFilter)st.colFilter={};
+function addTopScroll(table){ const wrap=table&&table.closest('.grid-wrap'); if(!wrap||!wrap.parentNode)return;
+  const prev=wrap.previousElementSibling; if(prev&&prev.classList.contains('hscroll-top'))prev.remove();
+  const bar=document.createElement('div'); bar.className='hscroll-top'; const inner=document.createElement('div'); inner.className='hscroll-inner'; bar.appendChild(inner);
+  wrap.parentNode.insertBefore(bar,wrap);
+  const sync=()=>{ inner.style.width=wrap.scrollWidth+'px'; }; sync(); setTimeout(sync,0);
+  let lock=false;
+  bar.addEventListener('scroll',()=>{ if(lock)return; lock=true; wrap.scrollLeft=bar.scrollLeft; lock=false; });
+  wrap.addEventListener('scroll',()=>{ if(lock)return; lock=true; bar.scrollLeft=wrap.scrollLeft; lock=false; }); }
+function enhanceGrid(table,key){ if(!table||!table.tHead)return; addTopScroll(table); const st=gridStates[key]||(gridStates[key]={sort:null,colFilter:{}}); if(!st.colFilter)st.colFilter={};
   const headRow=table.tHead.rows[0]; if(!headRow)return; const tb=table.tBodies[0]; const sample=tb&&tb.rows[0];
   [...headRow.cells].forEach((th,i)=>{ th.style.cursor='pointer'; th.title='クリックで並び替え';
     th.addEventListener('click',e=>{ if(e.target.closest('.flt'))return; const dir=(st.sort&&st.sort.i===i&&st.sort.dir>0)?-1:1; st.sort={i,dir}; applyGridSort(table,key); enhanceArrows(table,key); });
