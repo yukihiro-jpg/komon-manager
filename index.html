@@ -480,7 +480,7 @@
 /* ===== データ ===== */
 const LS_KEY='komonManagerData_v3';
 const AI_DEFAULTS={folderUrl:'',clientId:'',aiProvider:'gemini',claudeApiKey:'',claudeModel:'claude-opus-4-8',geminiApiKey:'',geminiModel:'gemini-2.5-flash',fbConfig:'',fbRoom:''};
-let data={ clients:[], filings:{}, filingSteps:{}, interimDone:{}, interimCells:{}, interimSteps:null, gensenSteps:null, monthly:{}, monthlyTargets:null, modules:{}, gensen:{monthly:{},special:{}}, gensenMonthly:{}, gensenSpecial:{}, nencho:{}, sonotaTables:[], docTables:[], docTemplate:{addr:{zip:true,addr:true,name:true,rep:true},header:'',footer:''}, clientSummaries:{}, minutes:[], settings:Object.assign({},AI_DEFAULTS) };
+let data={ clients:[], filings:{}, filingSteps:{}, interimDone:{}, interimCells:{}, interimSteps:null, gensenSteps:null, monthly:{}, monthlyTargets:null, modules:{}, gensen:{monthly:{},special:{}}, gensenMonthly:{}, gensenSpecial:{}, nencho:{}, sonotaTables:[], docTables:[], docTemplate:{addr:{zip:true,addr:true,name:true,rep:true},header:'',footer:''}, clientSummaries:{}, minutes:[], clientTombstones:{}, settings:Object.assign({},AI_DEFAULTS) };
 let filingYear=new Date().getFullYear(), filingMonth=null;     // 確定申告：決算年・選択中の決算月
 let interimYear=new Date().getFullYear(), interimMonth=null;   // 中間申告：暦年・選択中の月
 let moduleYear={};                                              // 各管理モジュールの対象年
@@ -511,10 +511,10 @@ function migrateFilingSteps(){
     data.filingSteps[mk]=arr.filter(s=>s.name!=='申告書チェック_2回目').map(s=>s.name==='申告書チェック_1回目'?Object.assign({},s,{name:'申告書チェック'}):s); });
   Object.values(data.filings||{}).forEach(f=>{ if(f&&f.cells){ if(f.cells['申告書チェック_1回目']!=null&&f.cells['申告書チェック']==null)f.cells['申告書チェック']=f.cells['申告書チェック_1回目']; delete f.cells['申告書チェック_1回目']; delete f.cells['申告書チェック_2回目']; } });
 }
-function loadLocal(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const d=JSON.parse(raw); data=Object.assign(data,d); data.settings=Object.assign({},AI_DEFAULTS,d.settings||{}); ['filings','filingSteps','interimDone','interimCells','monthly','modules','gensenMonthly','gensenSpecial','nencho','clientSummaries'].forEach(k=>{ if(!data[k])data[k]={}; }); ['sonotaTables','docTables','minutes'].forEach(k=>{ if(!Array.isArray(data[k]))data[k]=[]; }); if(!data.gensen)data.gensen={monthly:{},special:{}}; migrateFilingSteps(); } }catch(e){console.warn(e);} }
+function loadLocal(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const d=JSON.parse(raw); data=Object.assign(data,d); data.settings=Object.assign({},AI_DEFAULTS,d.settings||{}); ['filings','filingSteps','interimDone','interimCells','monthly','modules','gensenMonthly','gensenSpecial','nencho','clientSummaries','clientTombstones'].forEach(k=>{ if(!data[k])data[k]={}; }); ['sonotaTables','docTables','minutes'].forEach(k=>{ if(!Array.isArray(data[k]))data[k]=[]; }); if(!data.gensen)data.gensen={monthly:{},special:{}}; migrateFilingSteps(); } }catch(e){console.warn(e);} }
 /* ===== リアルタイム共同編集（Firebase Realtime Database） ===== */
 const Realtime=(function(){
-  const SYNC_KEYS=['clients','filings','filingSteps','interimDone','interimCells','interimSteps','gensenSteps','monthly','monthlyTargets','modules','gensen','gensenMonthly','gensenSpecial','nencho','sonotaTables','docTables','docTemplate','clientSummaries','minutes'];
+  const SYNC_KEYS=['clients','clientTombstones','filings','filingSteps','interimDone','interimCells','interimSteps','gensenSteps','monthly','monthlyTargets','modules','gensen','gensenMonthly','gensenSpecial','nencho','sonotaTables','docTables','docTemplate','clientSummaries','minutes'];
   const BAD=/[.#$\/\[\]~]/g;
   let ref=null, ready=false, lastSnap={}, pushTimer=null, fbPending=false;
   function enc(k){ return '_'+String(k).replace(BAD,c=>'~'+c.charCodeAt(0).toString(16)); }
@@ -524,6 +524,28 @@ const Realtime=(function(){
   function decodeTree(o){ if(Array.isArray(o))return o.map(decodeTree); if(isObj(o)){ const r={}; for(const k in o)r[dec(k)]=decodeTree(o[k]); return r; } return o; }
   function diffInto(up,path,cur,prev){ if(isObj(cur)&&isObj(prev)){ const ks=new Set([...Object.keys(cur),...Object.keys(prev)]); ks.forEach(k=>diffInto(up,path+'/'+enc(k),cur[k],prev[k])); } else if(JSON.stringify(cur)!==JSON.stringify(prev)){ up[path]=(cur===undefined?null:cur); } }
   function syncedView(){ const o={}; SYNC_KEYS.forEach(k=>o[k]=data[k]); return o; }
+  function relatedToClient(key,id){ return key===id||key.endsWith('__'+id)||key.endsWith('-'+id); }
+  // 接続時：ローカルとリモートをID単位で合体（新規は蓄積、削除は墓標で全端末に伝播）
+  function mergeRemote(d){
+    const tomb=Object.assign({},data.clientTombstones||{},d.clientTombstones||{});
+    // 顧問先：ID単位で和集合（同一IDはリモート優先）し、墓標のIDは除外
+    const byId={}; (data.clients||[]).forEach(c=>{ if(c&&c.id)byId[c.id]=c; });
+    (d.clients||[]).forEach(c=>{ if(c&&c.id)byId[c.id]=Object.assign({},byId[c.id],c); });
+    data.clients=Object.values(byId).filter(c=>!tomb[c.id]);
+    data.clientTombstones=tomb;
+    SYNC_KEYS.forEach(k=>{
+      if(k==='clients'||k==='clientTombstones')return;
+      const rv=d[k]; if(rv===undefined)return;
+      if(k==='minutes'){ const m={}; (data.minutes||[]).forEach(x=>{ if(x)m[x.id||JSON.stringify(x)]=x; });
+        (rv||[]).forEach(x=>{ if(x)m[x.id||JSON.stringify(x)]=x; });
+        data.minutes=Object.values(m).filter(x=>!tomb[x.clientId]); }
+      else if(Array.isArray(rv)){ data[k]=rv; }
+      else if(isObj(rv)){ const merged=Object.assign({},data[k]||{},rv);
+        Object.keys(merged).forEach(key=>{ for(const id in tomb){ if(relatedToClient(key,id)){ delete merged[key]; break; } } });
+        data[k]=merged; }
+      else { data[k]=rv; }
+    });
+  }
   function setStatus(s,t){ const d=document.getElementById('syncDot'),x=document.getElementById('syncText'); if(d)d.className='dot '+({on:'on',err:'err',busy:'busy'}[s]||''); if(x)x.textContent=t; }
   function parseConfig(txt){ const s=String(txt||''); const a=s.indexOf('{'),b=s.lastIndexOf('}'); if(a<0||b<0)throw new Error('firebaseConfigが不正です'); return new Function('return ('+s.slice(a,b+1)+')')(); }
   async function connect(){ const cfgTxt=data.settings.fbConfig, room=(data.settings.fbRoom||'').trim();
@@ -536,7 +558,7 @@ const Realtime=(function(){
       try{ if(firebase.auth)await firebase.auth().signInAnonymously(); }catch(ae){ console.warn('anon auth',ae); }
       ref=firebase.database().ref('rooms/'+enc(room));
       const snap=await ref.once('value'); const remote=snap.val();
-      if(remote){ const d=decodeTree(remote); SYNC_KEYS.forEach(k=>{ if(d[k]!==undefined)data[k]=d[k]; }); lastSnap=clone(syncedView()); saveLocal(); refreshAll(); }
+      if(remote){ const d=decodeTree(remote); mergeRemote(d); lastSnap=clone(d); saveLocal(); refreshAll(); pushNow(false); /* ローカルのみの新規をリモートへ反映 */ }
       else { lastSnap={}; pushNow(true); }
       ready=true; setStatus('on','共同編集中'); toast('リアルタイム同期に接続しました','ok');
       ref.on('value',onRemote);
@@ -773,6 +795,7 @@ function openClientModal(id){ document.getElementById('clientModalTitle').textCo
 function saveClient(){ if(!val('cl_name')){ toast('顧問先名を入力してください','err'); return; } const id=val('cl_id'); const o={}; CL_FIELDS.forEach(k=>o[k]=val('cl_'+k));
   if(id)Object.assign(clientById(id),o); else { o.id=uid(); data.clients.push(o); } persist(); refreshAll(); closeModal('clientModal'); toast('保存しました','ok'); }
 function deleteClient(id){ const c=clientById(id); if(!confirm(`「${c.name}」を削除しますか？\n関連する申告・資料・議事録も削除されます。`))return;
+  if(!data.clientTombstones)data.clientTombstones={}; data.clientTombstones[id]=Date.now(); // 全端末へ削除を伝播する墓標
   data.clients=data.clients.filter(x=>x.id!==id);
   Object.keys(data.filings).forEach(k=>{ if(k.endsWith('__'+id))delete data.filings[k]; });
   Object.values(data.modules||{}).forEach(m=>{ if(m&&m.data)Object.keys(m.data).forEach(k=>{ if(k.endsWith('__'+id))delete m.data[k]; }); });
