@@ -28,6 +28,10 @@
   .appbar-top .logo{font-size:22px;}
   .appbar-top h1{font-size:20px;margin:0;font-weight:500;letter-spacing:.2px;}
   .appbar-top .spacer{flex:1;}
+  .appbar-top .topnav{display:flex;gap:4px;}
+  .appbar-top .topnav a{padding:7px 14px;font-size:14px;font-weight:500;color:var(--muted);text-decoration:none;cursor:pointer;border-radius:8px;}
+  .appbar-top .topnav a:hover{background:#f1f3f4;}
+  .appbar-top .topnav a.active{color:var(--blue);background:#e8f0fe;}
   .sync{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);}
   .dot{width:9px;height:9px;border-radius:50%;background:#bdc1c6;display:inline-block;}
   .dot.on{background:#34a853;} .dot.err{background:#ea4335;} .dot.busy{background:#fbbc04;}
@@ -176,6 +180,10 @@
 <header class="appbar">
   <div class="appbar-top">
     <span class="logo">📁</span><h1>顧問先管理ツール</h1><div class="spacer"></div>
+    <nav class="topnav">
+      <a data-page="analysis" onclick="showPage('analysis')">分析</a>
+      <a data-page="settings" onclick="showPage('settings')">設定</a>
+    </nav>
     <div class="sync"><span id="syncDot" class="dot"></span><span id="syncText">ローカル保存</span>
       <button class="icon" onclick="manualSyncAll()" title="今すぐ同期">⟳</button></div>
   </div>
@@ -193,8 +201,6 @@
     <a data-page="sonota" onclick="showPage('sonota')">その他</a>
     <a data-page="docs" onclick="showPage('docs')">資料回収</a>
     <a data-page="minutes" onclick="showPage('minutes')">議事録</a>
-    <a data-page="analysis" class="right" onclick="showPage('analysis')">分析</a>
-    <a data-page="settings" onclick="showPage('settings')">設定</a>
   </nav>
 </header>
 
@@ -581,11 +587,11 @@ let saveTimer=null;
 function saveLocal(){ try{ localStorage.setItem(LS_KEY,JSON.stringify(data)); }catch(e){console.warn(e);} }
 function persist(sync=true){ saveLocal(); if(typeof Realtime!=='undefined')Realtime.push(); if(sync){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>DriveSync.saveToDrive(),1500); } }
 function refreshAll(){ renderDashboard(); renderClients(); renderFiling(); renderInterim(); renderMinutes(); populateClientSelects();
-  const act=document.querySelector('.tabs a.active'); const p=act&&act.dataset.page;
+  const act=document.querySelector('[data-page].active'); const p=act&&act.dataset.page;
   if(p&&MODULES.some(m=>m.key===p))renderModule(p); else if(p==='gensen')renderGensen(); else if(p==='nencho')renderNencho(); else if(p==='analysis')renderAnalysis();
   else if(p==='monthly')renderMonthly(); else if(p==='sonota')renderCustom('sonota'); else if(p==='docs')renderCustom('docs'); }
 
-function showPage(p){ document.querySelectorAll('.page').forEach(s=>s.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); document.querySelectorAll('.tabs a').forEach(a=>a.classList.toggle('active',a.dataset.page===p));
+function showPage(p){ document.querySelectorAll('.page').forEach(s=>s.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); document.querySelectorAll('[data-page]').forEach(a=>a.classList.toggle('active',a.dataset.page===p));
   if(MODULES.some(m=>m.key===p)) renderModule(p);
   else if(p==='gensen') renderGensen(); else if(p==='nencho') renderNencho(); else if(p==='analysis') renderAnalysis();
   else if(p==='monthly') renderMonthly(); else if(p==='sonota') renderCustom('sonota'); else if(p==='docs') renderCustom('docs'); }
